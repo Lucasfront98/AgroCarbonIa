@@ -5,6 +5,8 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import './App.css';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || "https://agrocarbonia-api.onrender.com";
+
 // Fix para ícones padrão do Leaflet no React
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -43,7 +45,7 @@ function App() {
     setMetrics(null);
     setMintStatus("idle");
     try {
-        const res = await fetch(`https://agrocarbonia-api.onrender.com/api/fetch-car/${carInput}`);
+        const res = await fetch(`${API_BASE_URL}/api/fetch-car/${carInput}`);
         const data = await res.json();
         
         if (res.ok && data.status === 'success') {
@@ -55,7 +57,7 @@ function App() {
             setMapCenter([coords[1], coords[0]]); // Leaflet inverte para [lat, lng]
             
             // Auto-Gatilho do MRV de Carbono para essa área baixada!
-            const postRes = await fetch('https://agrocarbonia-api.onrender.com/api/analyze-farm', {
+            const postRes = await fetch(`${API_BASE_URL}/api/analyze-farm`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(geojsonLayer)
@@ -126,7 +128,7 @@ function App() {
     setLoading(true);
     setMintStatus("idle");
     try {
-        const response = await fetch('https://agrocarbonia-api.onrender.com/api/analyze-farm', {
+        const response = await fetch(`${API_BASE_URL}/api/analyze-farm`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
