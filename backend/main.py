@@ -34,9 +34,13 @@ app.add_middleware(
 # 1. Configurações de Bancos de Dados
 # ==========================================================
 # PostgreSQL com PostGIS
-PG_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/agrocarbon")
-engine = create_engine(PG_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+PG_URL = os.getenv("DATABASE_URL", "")
+# Render usa 'postgres://' por padrão, mas o SQLAlchemy 2.0+ exige 'postgresql://'
+if PG_URL and PG_URL.startswith("postgres://"):
+    PG_URL = PG_URL.replace("postgres://", "postgresql://", 1)
+
+SessionLocal = None
+engine = None
 Base = declarative_base()
 
 class FarmArea(Base):
@@ -48,19 +52,44 @@ class FarmArea(Base):
     ndvi_avg = Column(Float)
     carbon_tco2e = Column(Float)
 
-# Instancia as tabelas no PG (é necessário que a extensão PostGIS esteja habilitada no banco)
-# No terminal SQL do PG rodar: CREATE EXTENSION postgis;
-try:
-    Base.metadata.create_all(bind=engine)
-except Exception as e:
-    print(f"Aviso: Não foi possível conectar ao PostgreSQL. {e}")
+if PG_URL and "localhost" not in PG_URL and "127.0.0.1" not in PG_URL:
+    try:
+        engine = create_engine(PG_URL, connect_args={'connect_timeout': 3})
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    except Exception as e:
+        print(f"Aviso: Falha ao inicializar o engine do BD: {e}")
+else:
+    print("Aviso: PostgreSQL URL é local ou ausente. Modo Fallback (salvamento no BD relacional desativado).")
+
+@app.on_event("startup")
+def startup_db_check():
+    import sys
+    print("Verificando conexão com o Banco de Dados...", flush=True)
+    if engine:
+        try:
+            Base.metadata.create_all(bind=engine)
+            print("PostgreSQL conectado e tabelas carregadas com sucesso!", flush=True)
+        except Exception as e:
+            print(f"Aviso Crítico: Erro ao conectar ao PostgreSQL - {e}", flush=True)
+    sys.stdout.flush()
 
 # MongoDB
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017/")
-# Reduzindo o timeout para apenas 2 segundos para o MVP não congelar a API caso o banco de dados não exista
-mongo_client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=2000)
-mongo_db = mongo_client["agrocarbon_db"]
-logs_collection = mongo_db["analysis_logs"]
+MONGO_URL = os.getenv("MONGO_URL", "")
+logs_collection = None
+
+if MONGO_URL and "localhost" not in MONGO_URL:
+    try:
+        mongo_client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=2000)
+        mongo_db = mongo_client["agrocarbon_db"]
+        logs_collection = mongo_db["analysis_logs"]
+    except Exception as e:
+        print(f"Aviso: MongoDB falhou ao conectar. {e}")
+else:
+    print("Aviso: MongoDB não configurado na nuvem. Usando Fallback.")
+
+@app.get("/")
+def read_root():
+    return {"status": "AgroCarbon IA API no ar!", "version": "v2.0.0-enterprise"}
 
 # ==========================================================
 # 2. Modelos Pydantic (Entradas da API)
@@ -214,47 +243,47 @@ async def analyze_farm(payload: GeoJSONPayload):
         estimated_value_usd = round(total_carbon_sequestrated * 18.50, 2)
 
         # SALVAR NO POSTGRES (PostGIS)
-        db = SessionLocal()
-        try:
-            # Transforma as coordenadas para a biblioteca matemática Shapely/GeoSQL
-            pg_polygon = shape(payload.features[0]["geometry"])
-            
-            new_farm = FarmArea(
-                geom=from_shape(pg_polygon, srid=4326),
-                area_hectares=area_hectares,
-                ndvi_avg=mock_ndvi_avg,
-                carbon_tco2e=total_carbon_sequestrated
-            )
-            db.add(new_farm)
-            db.commit()
-        except Exception as pg_err:
-            print(f"Não comunicou com PostGIS, fallback para memória RAM. {pg_err}")
-            db.rollback()
-        finally:
-            db.close()
+        if SessionLocal:
+            db = SessionLocal()
+            try:
+                pg_polygon = shape(payload.features[0]["geometry"])
+                new_farm = FarmArea(
+                    geom=from_shape(pg_polygon, srid=4326),
+                    area_hectares=area_hectares,
+                    ndvi_avg=mock_ndvi_avg,
+                    carbon_tco2e=total_carbon_sequestrated
+                )
+                db.add(new_farm)
+                db.commit()
+            except Exception as pg_err:
+                print(f"Não comunicou com PostGIS, fallback ativado. {pg_err}")
+                db.rollback()
+            finally:
+                db.close()
 
         # SALVAR NO MONGODB (Log Auditável Web3 Imutável Raw)
-        log_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "algo_version": "v2.0.0-enterprise",
-            "feature": payload.features[0],
-            "satellite_metadata": {
-                "source": "Sentinel-2 & MapBiomas",
-                "cloud_cover": round(random.uniform(0, 10), 1),
-                "resolution_m": 10
-            },
-            "results": {
-                "area_ha": area_hectares,
-                "ndvi": mock_ndvi_avg,
-                "mapbiomas_use": predominant_use,
-                "tco2e": total_carbon_sequestrated,
-                "usd_value": estimated_value_usd
+        if logs_collection is not None:
+            log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "algo_version": "v2.0.0-enterprise",
+                "feature": payload.features[0],
+                "satellite_metadata": {
+                    "source": "Sentinel-2 & MapBiomas",
+                    "cloud_cover": round(random.uniform(0, 10), 1),
+                    "resolution_m": 10
+                },
+                "results": {
+                    "area_ha": area_hectares,
+                    "ndvi": mock_ndvi_avg,
+                    "mapbiomas_use": predominant_use,
+                    "tco2e": total_carbon_sequestrated,
+                    "usd_value": estimated_value_usd
+                }
             }
-        }
-        try:
-            logs_collection.insert_one(log_entry)
-        except Exception as m_err:
-            print(f"Erro ao salvar no MongoDB: {m_err}")
+            try:
+                logs_collection.insert_one(log_entry)
+            except Exception as m_err:
+                print(f"Erro ao salvar no MongoDB: {m_err}")
 
         # Retorna o Dashboard para o React
         return {
