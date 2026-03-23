@@ -5,12 +5,13 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import './App.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "https://agrocarbonia-api.onrender.com";
-
 // Fix para ícones padrão do Leaflet no React
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || "https://agrocarbonia-api.onrender.com";
+
 let DefaultIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
 
