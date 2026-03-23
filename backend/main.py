@@ -13,7 +13,7 @@ from geoalchemy2 import Geometry
 from geoalchemy2.shape import from_shape
 from pymongo import MongoClient
 
-import geopandas as gpd
+import pyproj
 from shapely.geometry import shape
 
 # Bibliotecas de Sensoriamento Remoto
@@ -135,11 +135,14 @@ async def analyze_farm(payload: GeoJSONPayload):
         geom_dict = payload.features[0]['geometry']
         polygon = shape(geom_dict)
         
-        # Usa Geopandas para projetar o polígono em formato métrico e estimar Área
-        # epsg:4326 (lat/lon) -> epsg:3857 (pseudo-mercator para metros)
-        gdf = gpd.GeoDataFrame(index=[0], crs="epsg:4326", geometry=[polygon])
-        gdf_metric = gdf.to_crs(epsg=3857)
-        area_hectares = gdf_metric.area.iloc[0] / 10000.0  # Converte de m² para Hectares
+        # ===============================================================
+        # PROCESSAMENTO MATEMÁTICO VIA ELIPSOIDE WGS84 (Puro Python)
+        # ===============================================================
+        geod = pyproj.Geod(ellps="WGS84")
+        
+        # A API Geod calcula a área poligonal real na superfície curvada da terra
+        area_sq_meters, _ = geod.geometry_area_perimeter(polygon)
+        area_hectares = abs(area_sq_meters) / 10000.0
 
         if area_hectares <= 0.01:
             raise HTTPException(status_code=400, detail="Área desenhada é pequena demais.")
