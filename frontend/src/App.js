@@ -43,7 +43,7 @@ function App() {
     setMetrics(null);
     setMintStatus("idle");
     try {
-        const res = await fetch(`http://localhost:8001/api/fetch-car/${carInput}`);
+        const res = await fetch(`https://agrocarbonia-api.onrender.com/api/fetch-car/${carInput}`);
         const data = await res.json();
         
         if (res.ok && data.status === 'success') {
@@ -55,7 +55,7 @@ function App() {
             setMapCenter([coords[1], coords[0]]); // Leaflet inverte para [lat, lng]
             
             // Auto-Gatilho do MRV de Carbono para essa área baixada!
-            const postRes = await fetch('http://localhost:8001/api/analyze-farm', {
+            const postRes = await fetch('https://agrocarbonia-api.onrender.com/api/analyze-farm', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(geojsonLayer)
@@ -126,7 +126,7 @@ function App() {
     setLoading(true);
     setMintStatus("idle");
     try {
-        const response = await fetch('http://localhost:8001/api/analyze-farm', {
+        const response = await fetch('https://agrocarbonia-api.onrender.com/api/analyze-farm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
