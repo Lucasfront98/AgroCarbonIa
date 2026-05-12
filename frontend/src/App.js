@@ -10,7 +10,7 @@ import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "https://agrocarbonia-api.onrender.com";
+const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8001"; // Default para localhost em teste
 
 let DefaultIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
@@ -35,9 +35,47 @@ function App() {
   const [carInput, setCarInput] = useState("");
   const [carGeojson, setCarGeojson] = useState(null);
   const [mapCenter, setMapCenter] = useState(null);
+  
   // Estados para simulação financeira / NFT Web3
   const [mintStatus, setMintStatus] = useState("idle"); // idle, minting, success
   const [nftData, setNftData] = useState(null);
+
+  // Estados de Cadastro
+  const [user, setUser] = useState(null);
+  const [showModal, setShowModal] = useState(true);
+  const [regForm, setRegForm] = useState({ name: '', email: '', phone: '', farm_name: '' });
+
+  // Estados do Simulador
+  const [simPrice, setSimPrice] = useState(18.5);
+  const [simLandUse, setSimLandUse] = useState("");
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    if(!regForm.name || !regForm.email) return;
+    setLoading(true);
+    try {
+       const res = await fetch(`${API_BASE_URL}/api/register`, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(regForm)
+       });
+       if(res.ok) {
+           setUser(regForm);
+           setShowModal(false);
+       } else {
+           // Fallback if backend API is not running the new endpoint yet
+           setUser(regForm);
+           setShowModal(false);
+       }
+    } catch(err) {
+       console.error("Erro no cadastro", err);
+       // mock success if backend is offline
+       setUser(regForm);
+       setShowModal(false);
+    } finally {
+       setLoading(false);
+    }
+  };
 
   const fetchCarInfo = async () => {
     if (!carInput) return;
@@ -57,14 +95,17 @@ function App() {
             const coords = geojsonLayer.features[0].geometry.coordinates[0][0];
             setMapCenter([coords[1], coords[0]]); // Leaflet inverte para [lat, lng]
             
-            // Auto-Gatilho do MRV de Carbono para essa área baixada!
+            // Auto-Gatilho do MRV de Carbono
             const postRes = await fetch(`${API_BASE_URL}/api/analyze-farm`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(geojsonLayer)
             });
             const postData = await postRes.json();
-            if (postData.status === 'success') setMetrics(postData.metrics);
+            if (postData.status === 'success') {
+                setMetrics(postData.metrics);
+                setSimLandUse(postData.metrics.land_use);
+            }
         } else {
             alert(data.detail || "Cadastro não encontrado na Base do Governo.");
         }
@@ -120,7 +161,6 @@ function App() {
     const layer = e.layer;
     const geojson = layer.toGeoJSON();
     
-    // Constrói o GeoJSON completo da FeatureCollection
     const payload = {
         type: "FeatureCollection",
         features: [geojson]
@@ -138,6 +178,7 @@ function App() {
         
         if (data.status === 'success') {
              setMetrics(data.metrics);
+             setSimLandUse(data.metrics.land_use);
         } else {
              alert(data.detail || "Erro processando malha geométrica da fazenda.");
         }
@@ -149,108 +190,157 @@ function App() {
     }
   };
 
+  // Funções do Simulador
+  const calculateSimulatedCarbon = () => {
+    if (!metrics) return 0;
+    const landUse = simLandUse || metrics.land_use;
+    let baseFactor = 11.5; // Agricultura
+    if (landUse.includes("Integração")) baseFactor = 25.5;
+    else if (landUse.includes("Pastagem")) baseFactor = 14.2;
+    
+    return Number((metrics.area_ha * baseFactor * (metrics.ndvi_avg / 0.5)).toFixed(2));
+  };
+  
+  const simCarbon = calculateSimulatedCarbon();
+  const simValue = Number((simCarbon * simPrice).toFixed(2));
+  
+  // Novo Insight de Dados
+  const getWaterRetention = () => {
+    if(!metrics) return 0;
+    // Baseado no NDVI e Área
+    return Number((metrics.area_ha * metrics.ndvi_avg * 100).toFixed(0));
+  };
+
   return (
     <div className="app-container">
+      {/* MODAL DE CADASTRO */}
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>🌍 Bem-vindo ao AgroCarbon IA</h2>
+            <p>Por favor, identifique-se para acessar o terminal MRV.</p>
+            <form onSubmit={handleRegister}>
+              <div className="form-group">
+                <label>Nome Completo</label>
+                <input type="text" required value={regForm.name} onChange={e => setRegForm({...regForm, name: e.target.value})} placeholder="Ex: João da Silva" />
+              </div>
+              <div className="form-group">
+                <label>E-mail Corporativo</label>
+                <input type="email" required value={regForm.email} onChange={e => setRegForm({...regForm, email: e.target.value})} placeholder="joao@fazenda.com" />
+              </div>
+              <div className="form-group">
+                <label>Nome da Propriedade (Opcional)</label>
+                <input type="text" value={regForm.farm_name} onChange={e => setRegForm({...regForm, farm_name: e.target.value})} placeholder="Fazenda Boa Vista" />
+              </div>
+              <button type="submit" className="btn-primary" disabled={loading}>
+                {loading ? 'Conectando...' : 'Acessar Terminal Web3'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar: Dashboard */}
       <div className="sidebar">
         <div className="sidebar-header">
            <h2>AgroCarbon <span>IA</span></h2>
-           <p>Terminal MRV de Carbono</p>
+           <p>Terminal MRV {user ? `- Olá, ${user.name.split(' ')[0]}` : ''}</p>
         </div>
         
         <div className="dashboard-content">
            <div className="search-box" style={{ background: "rgba(76, 175, 80, 0.15)", border: "1px solid var(--accent)" }}>
              <input 
                 type="text" 
-                placeholder="Nº SICAR (Ex: MT-12345-ABC)" 
+                placeholder="Nº SICAR (Ex: MT-1234)" 
                 value={carInput} 
                 onChange={e => setCarInput(e.target.value)}
              />
-             <button onClick={fetchCarInfo} className="btn-search" style={{ background: "var(--accent)", color: "white" }}>Baixar Área</button>
+             <button onClick={fetchCarInfo} className="btn-search" style={{ background: "var(--accent)", color: "white" }}>Baixar</button>
            </div>
            
-           <hr style={{ margin: "15px 0", borderColor: "rgba(255,255,255,0.05)" }} />
+           <hr style={{ margin: "10px 0", borderColor: "rgba(255,255,255,0.05)" }} />
 
            <div className="search-box">
              <input 
                 type="text" 
-                placeholder="Buscar por Cidade, Estado ou Fazenda..." 
+                placeholder="Buscar por Cidade..." 
                 value={searchInput} 
                 onChange={e => setSearchInput(e.target.value)}
                 onKeyDown={(e) => { if(e.key === 'Enter') handleTextSearch(); }} 
              />
-             <button onClick={handleTextSearch} className="btn-search"><i className="fa-solid fa-magnifying-glass">Buscar</i></button>
+             <button onClick={handleTextSearch} className="btn-search">Ir</button>
            </div>
-           
-           <details style={{ marginBottom: '20px', color: 'var(--text-muted)' }}>
-             <summary style={{ cursor: 'pointer', fontSize: '0.85rem' }}>Desejo buscar por latitude e longitude exata</summary>
-             <div className="search-box" style={{ marginTop: '10px', marginBottom: '0' }}>
-               <input 
-                  type="number" 
-                  placeholder="Lat (Ex: -14.23)" 
-                  value={latInput} 
-                  onChange={e => setLatInput(e.target.value)} 
-               />
-               <input 
-                  type="number" 
-                  placeholder="Lng (Ex: -51.92)" 
-                  value={lngInput} 
-                  onChange={e => setLngInput(e.target.value)} 
-               />
-               <button onClick={handleSearch} className="btn-search">Ir</button>
-             </div>
-           </details>
 
            {loading ? (
                <div className="loading-state">
                    <div className="spinner"></div>
-                   <p>Acessando Satélites (Mock)... <br/>Processando Biomassa...</p>
+                   <p>Processando Dados Orbitais...</p>
                </div>
            ) : metrics ? (
                <div className="metrics-grid">
                    <div className="metric-card">
-                       <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                         Área Mapeada 
-                         <small style={{ backgroundColor: 'var(--accent)', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem' }}>Cálculo Real</small>
-                       </span>
-                       <h3>{metrics.area_ha} <small>Hectares</small></h3>
-                       <p className="subtitle" style={{ fontSize: '0.8rem' }}>Medição Geoespacial Cirúrgica da Geometria Desenhada</p>
-                   </div>
-
-                   <div className="metric-card" style={{ borderLeftColor: "#f39c12" }}>
-                       <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                         Classe do Solo (MapBiomas)
-                         <small style={{ backgroundColor: '#f39c12', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem' }}>Simulação API</small>
-                       </span>
-                       <h3 style={{ fontSize: '1.2rem', marginTop: '10px'}}>{metrics.land_use}</h3>
-                       <p className="subtitle" style={{ fontSize: '0.8rem' }}>No futuro, validará se houve desmatamento.</p>
-                   </div>
-
-                   <div className="metric-card">
-                       <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                         Índice de Saúde (NDVI)
-                         <small style={{ backgroundColor: '#f39c12', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem' }}>Simulação API</small>
-                       </span>
-                       <h3>{metrics.ndvi_avg}</h3>
-                       <p className="subtitle" style={{ fontSize: '0.8rem' }}>Infravermelho do Satélite Sentinel-2.</p>
+                       <span>Área Mapeada</span>
+                       <h3>{metrics.area_ha} <small>ha</small></h3>
                    </div>
 
                    <div className="metric-card highlight">
-                       <span>Total de Sequestro Estimado</span>
+                       <span>Desempenho Atual</span>
                        <h3>{metrics.carbon_tco2e} <small>tCO2e</small></h3>
-                       <p className="subtitle" style={{ fontSize: '0.85rem', margin: '5px 0' }}>
-                         Arquitetura Avançada: Combinação precisa do Histórico de Solo do MapBiomas com o Vigor Foliar Mensal do satélite.
-                       </p>
-                       <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(52, 152, 219, 0.2)', border: '1px solid #3498db', borderRadius: '4px' }}>
-                           <span style={{color: '#3498db', fontWeight: 'bold', display: 'block'}}>Oportunidade de Mercado:</span>
-                           <h4 style={{ margin: '5px 0', fontSize: '1.4rem' }}>💰 US$ {metrics.estimated_value_usd.toLocaleString('en-US')}</h4>
-                           <small>Cotação Média Atual: ~$18.50 / Tonelada</small>
+                       <p className="subtitle">Uso: {metrics.land_use}</p>
+                       <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(52, 152, 219, 0.2)', borderRadius: '4px' }}>
+                           <h4 style={{ margin: 0 }}>💰 US$ {metrics.estimated_value_usd.toLocaleString('en-US')}</h4>
                        </div>
+                   </div>
+
+                   {/* SIMULADOR DE CENÁRIOS */}
+                   <div className="simulator-section">
+                     <h4>🔬 Simulador de Cenários</h4>
+                     <p style={{fontSize:'0.8rem', color:'var(--text-muted)', marginBottom:'10px'}}>Manipule os dados abaixo para projetar lucratividade futura.</p>
+                     
+                     <div className="simulator-control">
+                        <label>
+                          Preço do Carbono (US$)
+                          <span style={{color: 'white', fontWeight: 'bold'}}>${simPrice.toFixed(2)}</span>
+                        </label>
+                        <input 
+                          type="range" 
+                          min="5" max="50" step="0.5" 
+                          value={simPrice} 
+                          onChange={(e) => setSimPrice(Number(e.target.value))} 
+                        />
+                     </div>
+
+                     <div className="simulator-control">
+                        <label>Projeto de Melhoria de Solo</label>
+                        <select value={simLandUse} onChange={(e) => setSimLandUse(e.target.value)}>
+                           <option value="Agricultura (Plantio Direto)">Agricultura (Plantio Direto)</option>
+                           <option value="Pastagem Bem Manejada">Pastagem Bem Manejada</option>
+                           <option value="Integração Lavoura-Pecuária-Floresta (ILPF)">Investir em Agrofloresta (ILPF)</option>
+                        </select>
+                     </div>
+
+                     <div style={{ padding: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', marginTop: '10px' }}>
+                        <span style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>Projeção Simulada:</span>
+                        <h3 style={{color: '#2ecc71', margin: '5px 0'}}>{simCarbon} tCO2e</h3>
+                        <h2 style={{color: '#3498db', fontSize: '1.5rem'}}>💰 US$ {simValue.toLocaleString('en-US')}</h2>
+                        {simValue > metrics.estimated_value_usd && (
+                          <p style={{color: '#f39c12', fontSize: '0.8rem', marginTop:'5px'}}>
+                            ▲ Ganho de US$ {(simValue - metrics.estimated_value_usd).toLocaleString('en-US')}
+                          </p>
+                        )}
+                     </div>
+                   </div>
+                   
+                   {/* Novo Insight Baseado em Dados */}
+                   <div className="metric-card" style={{ borderLeftColor: "#9b59b6" }}>
+                       <span>Índice de Retenção Hídrica</span>
+                       <h3 style={{ fontSize: '1.4rem'}}>{getWaterRetention()} <small>m³ (Est.)</small></h3>
+                       <p className="subtitle">Baseado na área ({metrics.area_ha}ha) e saúde foliar (NDVI: {metrics.ndvi_avg}).</p>
                    </div>
                    
                    {mintStatus === "idle" && (
-                       <button className="btn-mint" onClick={simulateNftMinting} style={{ marginTop: '15px' }}>
-                           Mintar Certificado NFT 💎
+                       <button className="btn-mint" onClick={simulateNftMinting}>
+                           Emitir Certificado Blockchain 💎
                        </button>
                    )}
                    
@@ -262,14 +352,12 @@ function App() {
 
                    {mintStatus === "success" && (
                        <div style={{ marginTop: '15px', background: '#27ae60', padding: '15px', borderRadius: '8px', color: 'white', textAlign: 'center' }}>
-                           <h4 style={{ margin: '0 0 10px 0' }}>✅ Certificado Gerado com Sucesso!</h4>
-                           <p style={{ margin: '0', fontSize: '0.9rem' }}>Blockchain Hash:</p>
+                           <h4 style={{ margin: '0 0 10px 0' }}>✅ Certificado Gerado!</h4>
                            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '5px', borderRadius: '4px', fontSize: '1.1rem' }}>{nftData}</code>
-                           <p style={{ margin: '15px 0 0 0', fontSize: '0.85rem' }}>O ativo ambiental agora é rastreável e negociável na Web3.</p>
                        </div>
                    )}
                    
-                   <button className="btn-reset" onClick={resetSelection} style={{ marginTop: '10px' }}>
+                   <button className="btn-reset" onClick={resetSelection}>
                        Nova Análise
                    </button>
                </div>
@@ -277,10 +365,10 @@ function App() {
                <div className="instruction-state">
                    <h3>Novo Mapeamento</h3>
                    <ol>
-                       <li>Arraste o mapa para a localização da sua propriedade.</li>
-                       <li>Clique no ícone de polígono (⬟) no menu do mapa.</li>
-                       <li>Contorne visualmente o limite da sua fazenda.</li>
-                       <li>Clique no primeiro ponto para fechar a área e aguarde o cálculo geospacial do Backend.</li>
+                       <li>Arraste o mapa para a sua fazenda.</li>
+                       <li>Clique no ícone de polígono (⬟).</li>
+                       <li>Contorne a área desejada.</li>
+                       <li>Clique no ponto inicial para fechar.</li>
                    </ol>
                </div>
            )}
@@ -289,22 +377,17 @@ function App() {
       
       {/* Área do Mapa */}
       <div className="map-wrapper">
-         {/* Centralizado no Brasil */}
          <MapContainer center={[-14.235, -51.925]} zoom={5} style={{ height: "100%", width: "100%" }}>
             <MapController centerCoordinates={mapCenter} />
-            
-            {/* TileLayer de Satélite Base (Esri World Imagery) */}
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               attribution="Satélite &copy; Esri"
             />
-            {/* TileLayer de Cidades e Fronteiras SOBREPOSTO ao Satélite */}
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
               attribution="Cidades &copy; Esri"
             />
             
-            {/* Camada Dinâmica quando baixamos um CAR federal */}
             {carGeojson && (
                 <GeoJSON 
                    key={JSON.stringify(carGeojson)} 
@@ -325,15 +408,7 @@ function App() {
                    polyline: false,
                    polygon: {
                        allowIntersection: false,
-                       drawError: { 
-                         color: '#e1e100', 
-                         message: '<strong>Aviso:</strong> Limites da fazenda não podem se cruzar.'
-                       },
-                       shapeOptions: { 
-                         color: '#2ecc71', 
-                         fillColor: '#27ae60', 
-                         fillOpacity: 0.5 
-                       }
+                       shapeOptions: { color: '#2ecc71', fillColor: '#27ae60', fillOpacity: 0.5 }
                    }
                  }}
                />

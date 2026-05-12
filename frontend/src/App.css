@@ -260,3 +260,155 @@ body, html, #root {
 .leaflet-container {
   background: #111;
 }
+
+/* --- NOVOS ESTILOS: SIMULADOR E MODAL --- */
+
+.simulator-section {
+  margin-top: 20px;
+  background: rgba(0,0,0,0.3);
+  padding: 15px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.simulator-section h4 {
+  color: var(--highlight);
+  margin-bottom: 15px;
+  font-size: 1.1rem;
+}
+
+.simulator-control {
+  margin-bottom: 15px;
+}
+
+.simulator-control label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.simulator-control input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.simulator-control select {
+  width: 100%;
+  padding: 10px;
+  background: var(--bg-dark);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  outline: none;
+}
+
+/* Modal Registration */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(5px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: var(--bg-panel);
+  padding: 30px;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 450px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.modal-content h2 {
+  color: var(--accent);
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.modal-content p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: white;
+  outline: none;
+  transition: all 0.3s;
+}
+
+.form-group input:focus {
+  border-color: var(--accent);
+  background: rgba(0,0,0,0.4);
+}
+
+.btn-primary {
+  width: 100%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 15px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-top: 10px;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  transform: translateY(-2px);
+}
+
+/* Responsividade Mobile-First / Media Queries */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100%;
+    height: 50vh; /* Metade da tela para o dashboard no mobile */
+    box-shadow: 0 -4px 15px rgba(0,0,0,0.5);
+    z-index: 1000;
+    order: 2; /* Mapa fica em cima, dashboard em baixo */
+  }
+  
+  .map-wrapper {
+    height: 50vh;
+    order: 1;
+  }
+  
+  .sidebar-header {
+    padding: 15px;
+  }
+  
+  .sidebar-header h2 {
+    font-size: 1.5rem;
+  }
+}

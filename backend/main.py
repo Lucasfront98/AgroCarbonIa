@@ -98,9 +98,27 @@ class GeoJSONPayload(BaseModel):
     type: str
     features: list
 
+class UserRegistration(BaseModel):
+    name: str
+    email: str
+    phone: str
+    farm_name: str
+
 # ==========================================================
 # 3. Rotas da API e Lógica Matemática (MRV)
 # ==========================================================
+
+@app.post("/api/register")
+async def register_user(user: UserRegistration):
+    """
+    Registra um novo usuário no sistema.
+    """
+    try:
+        # Aqui integraríamos com AWS Cognito ou salvaríamos no banco
+        print(f"Novo usuário registrado: {user.name} - {user.email}")
+        return {"status": "success", "message": "Usuário cadastrado com sucesso!", "user": user.dict()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 @app.get("/api/fetch-car/{car_number}")
 async def fetch_car(car_number: str):
     """
