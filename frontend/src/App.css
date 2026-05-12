@@ -261,6 +261,35 @@ body, html, #root {
   background: #111;
 }
 
+/* Tabs */
+.tabs {
+  display: flex;
+  background: rgba(0,0,0,0.3);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.tab-btn {
+  flex: 1;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  padding: 15px 10px;
+  cursor: pointer;
+  font-weight: bold;
+  border-bottom: 3px solid transparent;
+  transition: all 0.3s;
+}
+
+.tab-btn:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom: 3px solid var(--accent);
+  background: rgba(76, 175, 80, 0.1);
+}
+
 /* --- NOVOS ESTILOS: SIMULADOR E MODAL --- */
 
 .simulator-section {
