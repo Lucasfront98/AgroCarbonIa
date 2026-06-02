@@ -1,0 +1,338 @@
+@import url('https://api.fontshare.com/v2/css?f[]=clash-display@200,300,400,500,600,700&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap');
+
+:root {
+  --bg: #09100d;
+  --surface: #0f1a14;
+  --surface2: #162010;
+  --border: rgba(255, 255, 255, 0.07);
+  --border2: rgba(76, 200, 130, 0.18);
+  --green: #3ddc84;
+  --gold: #e8c55a;
+  --text: #f0f5f2;
+  --muted: rgba(240, 245, 242, 0.45);
+  --muted2: rgba(240, 245, 242, 0.25);
+  
+  --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Global Reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-radius: 0 !important; /* Strict border-radius 0 everywhere */
+  box-shadow: none !important; /* Strict no drop shadows */
+  text-shadow: none !important;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Satoshi', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+
+/* Headings in Clash Display */
+h1, h2, h3, h4, h5, h6, .font-clash {
+  font-family: 'Clash Display', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* DM Mono for specific fields */
+.font-mono, .price, .code, .stat-number {
+  font-family: 'DM Mono', monospace;
+}
+
+/* Base Elements styling */
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+button, input, select, textarea {
+  font-family: 'Satoshi', sans-serif;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  outline: none;
+  transition: var(--transition);
+}
+
+button {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+/* Flat borders only */
+.border-flat {
+  border: 1px solid var(--border) !important;
+}
+
+.border-green {
+  border: 1px solid var(--border2) !important;
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface2);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--green);
+}
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+.form-label {
+  display: block;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 1rem;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--green);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  transition: var(--transition);
+}
+
+.btn-primary {
+  background-color: var(--green);
+  color: var(--bg);
+  border-color: var(--green);
+}
+.btn-primary:hover {
+  background-color: var(--bg);
+  color: var(--green);
+}
+
+.btn-secondary {
+  border-color: var(--green);
+  color: var(--green);
+}
+.btn-secondary:hover {
+  background-color: var(--green);
+  color: var(--bg);
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--text);
+}
+.btn-ghost:hover {
+  border-color: var(--border);
+  background-color: var(--surface);
+}
+
+.btn-danger {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+.btn-danger:hover {
+  background-color: #ef4444;
+  color: var(--text);
+}
+
+.btn-gold {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.btn-gold:hover {
+  background-color: var(--gold);
+  color: var(--bg);
+}
+
+/* Animations */
+@keyframes ticker {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.ticker-wrap {
+  overflow: hidden;
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0;
+  width: 100%;
+}
+.ticker {
+  display: flex;
+  white-space: nowrap;
+  animation: ticker 25s linear infinite;
+  width: max-content;
+}
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 2rem;
+  font-size: 0.85rem;
+}
+
+/* Grid & Layout Utilities */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  width: 100%;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--border);
+}
+
+.badge-green {
+  border-color: rgba(61, 220, 132, 0.3);
+  color: var(--green);
+  background: rgba(61, 220, 132, 0.05);
+}
+
+.badge-gold {
+  border-color: rgba(232, 197, 90, 0.3);
+  color: var(--gold);
+  background: rgba(232, 197, 90, 0.05);
+}
+
+.badge-amber {
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.badge-blue {
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.05);
+}
+
+/* Table styling */
+.custom-table-container {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+}
+
+.custom-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.custom-table th {
+  background-color: var(--surface2);
+  padding: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.custom-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.custom-table tr:last-child td {
+  border-bottom: none;
+}
+
+.custom-table tr:hover td {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Modal styling */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(9, 16, 13, 0.85);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal-content {
+  background-color: var(--surface);
+  border: 1px solid var(--border2);
+  width: 100%;
+  max-width: 600px;
+  position: relative;
+  animation: modalEnter 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
