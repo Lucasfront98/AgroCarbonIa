@@ -1,8 +1,11 @@
 import os
+import json
 import time
 import random
+import tempfile
+import httpx
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,11 +34,61 @@ app.add_middleware(
 )
 
 # ==========================================================
-# 1. Configurações de Bancos de Dados
+# 1. Autenticação Google Earth Engine via Service Account
 # ==========================================================
-# PostgreSQL com PostGIS
+GEE_PROJECT_ID = os.getenv("GEE_PROJECT_ID", "")
+GEE_SERVICE_ACCOUNT_JSON = os.getenv("GEE_SERVICE_ACCOUNT_JSON", "")
+
+gee_initialized = False
+
+def initialize_gee() -> bool:
+    """
+    Autentica no GEE usando a Service Account configurada em variável de ambiente.
+    Retorna True se bem-sucedido, False caso contrário.
+    """
+    global gee_initialized
+
+    if gee_initialized:
+        return True
+
+    if not GEE_SERVICE_ACCOUNT_JSON or not GEE_PROJECT_ID:
+        print("Aviso: GEE_PROJECT_ID ou GEE_SERVICE_ACCOUNT_JSON não configurados. Usando simulação.")
+        return False
+
+    try:
+        # Faz parse do JSON da Service Account
+        sa_info = json.loads(GEE_SERVICE_ACCOUNT_JSON)
+        service_account_email = sa_info.get("client_email", "")
+
+        if not service_account_email:
+            print("Aviso: JSON da Service Account não contém 'client_email'.")
+            return False
+
+        # Escreve o JSON em arquivo temporário (exigido pela SDK do GEE)
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+            json.dump(sa_info, tmp)
+            tmp_path = tmp.name
+
+        credentials = ee.ServiceAccountCredentials(
+            email=service_account_email,
+            key_file=tmp_path
+        )
+        ee.Initialize(credentials=credentials, project=GEE_PROJECT_ID)
+        os.unlink(tmp_path)  # apaga o arquivo temporário imediatamente
+
+        gee_initialized = True
+        print(f"Earth Engine autenticado com sucesso! Conta: {service_account_email}")
+        return True
+
+    except Exception as e:
+        print(f"Erro ao autenticar no Earth Engine: {e}")
+        return False
+
+
+# ==========================================================
+# 2. Configurações de Bancos de Dados
+# ==========================================================
 PG_URL = os.getenv("DATABASE_URL", "")
-# Render usa 'postgres://' por padrão, mas o SQLAlchemy 2.0+ exige 'postgresql://'
 if PG_URL and PG_URL.startswith("postgres://"):
     PG_URL = PG_URL.replace("postgres://", "postgresql://", 1)
 
@@ -59,7 +112,7 @@ if PG_URL and "localhost" not in PG_URL and "127.0.0.1" not in PG_URL:
     except Exception as e:
         print(f"Aviso: Falha ao inicializar o engine do BD: {e}")
 else:
-    print("Aviso: PostgreSQL URL é local ou ausente. Modo Fallback (salvamento no BD relacional desativado).")
+    print("Aviso: PostgreSQL URL local ou ausente. Modo Fallback ativado.")
 
 @app.on_event("startup")
 def startup_db_check():
@@ -71,6 +124,9 @@ def startup_db_check():
             print("PostgreSQL conectado e tabelas carregadas com sucesso!", flush=True)
         except Exception as e:
             print(f"Aviso Crítico: Erro ao conectar ao PostgreSQL - {e}", flush=True)
+
+    # Tenta autenticar no GEE já no startup para detectar erros de configuração cedo
+    initialize_gee()
     sys.stdout.flush()
 
 # MongoDB
@@ -87,12 +143,21 @@ if MONGO_URL and "localhost" not in MONGO_URL:
 else:
     print("Aviso: MongoDB não configurado na nuvem. Usando Fallback.")
 
-@app.get("/")
-def read_root():
-    return {"status": "AgroCarbon IA API no ar!", "version": "v2.1.0-calibrated"}
 
 # ==========================================================
-# 2. Modelos Pydantic (Entradas da API)
+# 3. Rotas auxiliares
+# ==========================================================
+@app.get("/")
+def read_root():
+    return {
+        "status": "AgroCarbon IA API no ar!",
+        "version": "v2.2.0-gee-integrated",
+        "gee_status": "autenticado" if gee_initialized else "simulação"
+    }
+
+
+# ==========================================================
+# 4. Modelos Pydantic (Entradas da API)
 # ==========================================================
 class GeoJSONPayload(BaseModel):
     type: str
@@ -104,8 +169,47 @@ class UserRegistration(BaseModel):
     phone: str
     farm_name: str
 
+
 # ==========================================================
-# 3. Rotas da API e Lógica Matemática (MRV)
+# 5. Integração SoilGrids (COS real via REST)
+# Documentação: https://rest.isric.org/soilgrids/v2.0/docs
+# Retorna Carbono Orgânico do Solo (SOC) em g/kg para a
+# camada 0-30cm (horizonte de sequestro agrícola relevante).
+# ==========================================================
+async def fetch_soilgrids_soc(lat: float, lon: float) -> Optional[float]:
+    """
+    Busca SOC (Carbono Orgânico do Solo) do SoilGrids para um ponto central.
+    Retorna valor em g/kg ou None se indisponível.
+    """
+    url = (
+        f"https://rest.isric.org/soilgrids/v2.0/properties/query"
+        f"?lon={lon}&lat={lat}"
+        f"&property=soc&depth=0-30cm&value=mean"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.json()
+
+            # Navega no JSON aninhado do SoilGrids
+            layers = data.get("properties", {}).get("layers", [])
+            for layer in layers:
+                if layer.get("name") == "soc":
+                    depths = layer.get("depths", [])
+                    for depth in depths:
+                        if depth.get("label") == "0-30cm":
+                            soc_raw = depth.get("values", {}).get("mean")
+                            if soc_raw is not None:
+                                # SoilGrids retorna em dg/kg × 10, converter para g/kg
+                                return round(soc_raw / 10.0, 2)
+    except Exception as e:
+        print(f"SoilGrids indisponível: {e}")
+    return None
+
+
+# ==========================================================
+# 6. Rotas da API e Lógica Matemática (MRV)
 # ==========================================================
 
 @app.post("/api/register")
@@ -123,13 +227,12 @@ async def register_user(user: UserRegistration):
 @app.get("/api/fetch-car/{car_number}")
 async def fetch_car(car_number: str):
     """
-    Mock de integração com o SICAR/Governo Federal e APIs Especializadas (MapBiomas/Agrotools).
+    Mock de integração com o SICAR/Governo Federal.
     Recebe um número de CAR e retorna o GeoJSON (Polígono) oficial da propriedade.
     """
     if "-" not in car_number:
         raise HTTPException(status_code=400, detail="Formato de CAR inválido. Ex: MT-12345-ABCD...")
 
-    # Gerador de coordenada base aleatória dentro do Brasil Central (MT/GO/MS)
     base_lng = round(random.uniform(-56.0, -50.0), 4)
     base_lat = round(random.uniform(-16.0, -10.0), 4)
     offset_lat = random.uniform(0.02, 0.08)
@@ -167,19 +270,24 @@ async def fetch_car(car_number: str):
 async def analyze_farm(payload: GeoJSONPayload):
     """
     Recebe um GeoJSON do Frontend, extrai o polígono, calcula área e estimativas de carbono.
-    Fatores calibrados conforme IPCC Tier 1 e Embrapa (Inventário Nacional de GEE - Cerrado/Amazônia).
-    Preço de mercado baseado no mercado voluntário BR 2024-2025 (sem certificação Verra/Gold Standard).
+
+    Fontes científicas:
+    - Área: pyproj Geod WGS84 (geodésico real)
+    - NDVI: Sentinel-2 SR via GEE (banda B8/B4, 10m, mediana anual 2024) | fallback: 0.55
+    - Uso do solo: MapBiomas Coleção 8.0 via GEE | fallback: aleatório ponderado
+    - COS: SoilGrids v2.0 REST API (0-30cm) | fallback: não aplicado
+    - Fatores de carbono: IPCC Tier 1 (2006 GL) + Embrapa Inventário Nacional GEE
+    - Preço: Ecosystem Marketplace 2024, Moss.Earth MCO2, CBIO B3
     """
     try:
         if not payload.features:
             raise HTTPException(status_code=400, detail="Nenhum polígono encontrado.")
 
-        # Extrai a geometria do GeoJSON (WGS 84 - Coordenadas Geográficas)
         geom_dict = payload.features[0]['geometry']
         polygon = shape(geom_dict)
 
         # ===============================================================
-        # PROCESSAMENTO MATEMÁTICO VIA ELIPSOIDE WGS84 (Puro Python)
+        # CÁLCULO DE ÁREA (Elipsoide WGS84 — geodésico real)
         # ===============================================================
         geod = pyproj.Geod(ellps="WGS84")
         area_sq_meters, _ = geod.geometry_area_perimeter(polygon)
@@ -189,74 +297,82 @@ async def analyze_farm(payload: GeoJSONPayload):
             raise HTTPException(status_code=400, detail="Área desenhada é pequena demais.")
 
         # ===============================================================
-        # NDVI: Valor conservador fixo até integração real com GEE/Sentinel-2
-        # Referência: NDVI médio de áreas agrícolas brasileiras = 0.50-0.60
-        # Fonte: Embrapa Monitoramento por Satélite
-        # ATENÇÃO: substituir mock_ndvi_avg pelo valor real do GEE quando
-        # a autenticação da Service Account estiver configurada.
+        # PONTO CENTRAL para consultas de ponto (SoilGrids)
+        # ===============================================================
+        centroid = polygon.centroid
+        center_lat = centroid.y
+        center_lon = centroid.x
+
+        # ===============================================================
+        # NDVI e USO DO SOLO — GEE (real) ou Fallback (simulação)
         # ===============================================================
         ndvi_is_real = False
-        ndvi_avg = 0.55  # valor médio-conservador para simulação
-
+        ndvi_avg = 0.55  # fallback conservador (Embrapa: média BR agrícola)
         predominant_use = None
+        mapbiomas_class_id = None
 
-        # ---------------------------------------------------------------
-        # INTEGRAÇÃO REAL COM GOOGLE EARTH ENGINE E MAPBIOMAS (quando disponível)
-        # ---------------------------------------------------------------
-        try:
-            ee.Initialize(project='seu-projeto-gcp-aqui')
-            print("Earth Engine Conectado. Buscando Asset MapBiomas Coleção 8.0...")
+        # Tenta inicializar o GEE a cada requisição (idempotente se já inicializado)
+        gee_available = initialize_gee()
 
-            coords = payload.features[0]["geometry"]["coordinates"]
-            ee_geom = ee.Geometry.Polygon(coords)
+        if gee_available:
+            try:
+                coords = payload.features[0]["geometry"]["coordinates"]
+                ee_geom = ee.Geometry.Polygon(coords)
 
-            # NDVI real via Sentinel-2 (bandas B8=NIR, B4=Red)
-            sentinel2 = (
-                ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
-                .filterBounds(ee_geom)
-                .filterDate('2024-01-01', '2024-12-31')
-                .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10))
-                .median()
-            )
-            ndvi_image = sentinel2.normalizedDifference(['B8', 'B4']).rename('NDVI')
-            ndvi_stats = ndvi_image.reduceRegion(
-                reducer=ee.Reducer.mean(),
-                geometry=ee_geom,
-                scale=10,
-                maxPixels=1e9
-            ).getInfo()
-            ndvi_real = ndvi_stats.get('NDVI')
-            if ndvi_real is not None:
-                ndvi_avg = round(float(ndvi_real), 3)
-                ndvi_is_real = True
-                print(f"NDVI real obtido do Sentinel-2: {ndvi_avg}")
+                # --- NDVI real via Sentinel-2 ---
+                sentinel2 = (
+                    ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+                    .filterBounds(ee_geom)
+                    .filterDate('2024-01-01', '2024-12-31')
+                    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10))
+                    .median()
+                )
+                ndvi_image = sentinel2.normalizedDifference(['B8', 'B4']).rename('NDVI')
+                ndvi_stats = ndvi_image.reduceRegion(
+                    reducer=ee.Reducer.mean(),
+                    geometry=ee_geom,
+                    scale=10,
+                    maxPixels=1e9
+                ).getInfo()
+                ndvi_real = ndvi_stats.get('NDVI')
+                if ndvi_real is not None:
+                    ndvi_avg = round(float(ndvi_real), 3)
+                    ndvi_is_real = True
+                    print(f"NDVI real obtido do Sentinel-2: {ndvi_avg}")
 
-            # Uso do solo via MapBiomas
-            mapbiomas_asset = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
-            band_names = mapbiomas_asset.bandNames().getInfo()
-            latest_year_band = band_names[-1]
-            latest_image = mapbiomas_asset.select(latest_year_band)
+                # --- Uso do solo via MapBiomas Coleção 8.0 ---
+                mapbiomas_asset = ee.Image(
+                    'projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1'
+                )
+                band_names = mapbiomas_asset.bandNames().getInfo()
+                latest_year_band = band_names[-1]
+                latest_image = mapbiomas_asset.select(latest_year_band)
 
-            stats = latest_image.reduceRegion(
-                reducer=ee.Reducer.mode(),
-                geometry=ee_geom,
-                scale=30,
-                maxPixels=1e9
-            ).getInfo()
+                stats = latest_image.reduceRegion(
+                    reducer=ee.Reducer.mode(),
+                    geometry=ee_geom,
+                    scale=30,
+                    maxPixels=1e9
+                ).getInfo()
 
-            class_id = stats.get(latest_year_band)
+                mapbiomas_class_id = stats.get(latest_year_band)
 
-            if class_id == 15:
-                predominant_use = "Pastagem Bem Manejada"
-            elif class_id in [39, 41, 19, 20]:
-                predominant_use = "Agricultura (Plantio Direto)"
-            elif class_id == 3:
-                predominant_use = "Reserva Legal (Floresta Intacta)"
-            else:
-                predominant_use = "Integração Lavoura-Pecuária-Floresta (ILPF)"
+                # Mapeamento de classes MapBiomas → uso dominante
+                # https://mapbiomas.org/codigos-de-legenda
+                if mapbiomas_class_id == 15:
+                    predominant_use = "Pastagem Bem Manejada"
+                elif mapbiomas_class_id in [39, 41, 19, 20, 21]:
+                    predominant_use = "Agricultura (Plantio Direto)"
+                elif mapbiomas_class_id == 3:
+                    predominant_use = "Reserva Legal (Floresta Intacta)"
+                elif mapbiomas_class_id in [9, 36]:
+                    predominant_use = "Integração Lavoura-Pecuária-Floresta (ILPF)"
+                else:
+                    predominant_use = "Integração Lavoura-Pecuária-Floresta (ILPF)"
 
-        except Exception as e:
-            print(f"GEE não autenticado. Fallback para simulação. Erro: {e}")
+            except Exception as e:
+                print(f"GEE falhou durante análise. Fallback ativado. Erro: {e}")
+                gee_available = False
 
         # Fallback de uso do solo se GEE não disponível
         if not predominant_use:
@@ -268,6 +384,14 @@ async def analyze_farm(payload: GeoJSONPayload):
             predominant_use = random.choice(land_uses)
 
         # ===============================================================
+        # COS — SoilGrids (carbono orgânico do solo, 0-30cm)
+        # Complementa o sequestro aéreo/biomassa com estoque edáfico.
+        # Referência: ISRIC SoilGrids v2.0 (Poggio et al., 2021)
+        # ===============================================================
+        soc_g_per_kg = await fetch_soilgrids_soc(center_lat, center_lon)
+        soc_is_real = soc_g_per_kg is not None
+
+        # ===============================================================
         # FATORES DE CARBONO CALIBRADOS
         # Fonte: IPCC Tier 1 (2006 GL) + Embrapa Inventário Nacional GEE
         # Bioma de referência: Cerrado (dominante no agronegócio BR)
@@ -277,9 +401,6 @@ async def analyze_farm(payload: GeoJSONPayload):
         # Pastagem manejada:  3-8  tCO2e/ha  → mediana conservadora:  5.0
         # Plantio direto:     1-4  tCO2e/ha  → mediana conservadora:  3.5
         # Floresta intacta:  15-25 tCO2e/ha  → mediana conservadora: 18.0
-        #
-        # Para certificação Verra/Gold Standard, exige-se baseline
-        # site-specific. Estes valores são estimativas de triagem (screening).
         # ===============================================================
         carbon_factors = {
             "Integração Lavoura-Pecuária-Floresta (ILPF)": 12.0,
@@ -290,21 +411,33 @@ async def analyze_farm(payload: GeoJSONPayload):
         base_factor = carbon_factors.get(predominant_use, 5.0)
 
         # Ajuste pelo NDVI: normalizado em torno de 0.55 (média BR)
-        # Limita o multiplicador entre 0.7x e 1.3x para evitar distorções
+        # Limita o multiplicador entre 0.7x e 1.3x
         ndvi_multiplier = max(0.7, min(1.3, ndvi_avg / 0.55))
         carbon_factor_per_ha = base_factor * ndvi_multiplier
         total_carbon_sequestrated = round(area_hectares * carbon_factor_per_ha, 2)
 
+        # Bônus de COS: se o SoilGrids retornou valor real,
+        # adiciona estimativa de estoque edáfico (conservadora: 10% do SOC como adicional)
+        soc_bonus_tco2e = 0.0
+        if soc_is_real and soc_g_per_kg:
+            # Conversão: SOC (g/kg) × densidade do solo (1.3 t/m³) × profundidade (0.3m)
+            # × área (ha) × fator CO2e (44/12) — simplificado para triagem Tier 1
+            bulk_density = 1.3  # t/m³ (média Cerrado, Embrapa)
+            depth_m = 0.3
+            soc_fraction = soc_g_per_kg / 1000.0  # g/kg → kg/kg
+            soc_t_per_ha = soc_fraction * bulk_density * depth_m * 10000  # ha → m²
+            soc_co2e_per_ha = soc_t_per_ha * (44 / 12)
+            # Bônus conservador: 5% do estoque como sequestro incremental possível
+            soc_bonus_tco2e = round(area_hectares * soc_co2e_per_ha * 0.05, 2)
+            total_carbon_sequestrated = round(total_carbon_sequestrated + soc_bonus_tco2e, 2)
+
         # ===============================================================
         # PREÇO DE MERCADO CALIBRADO
-        # Fonte: Moss.Earth MCO2, CBIO B3, relatório Ecosystem Marketplace 2024
+        # Fonte: Moss.Earth MCO2, CBIO B3, Ecosystem Marketplace 2024
         #
         # Mercado voluntário BR sem certificação:  US$ 5-10/tCO2e
         # Com certificação Verra VCS:             US$ 12-20/tCO2e
         # CBIO (mercado regulado, biocombustíveis): R$ 30-50/crédito
-        #
-        # Usamos US$ 7.50 como referência conservadora sem certificação.
-        # Exibir faixa ao usuário é mais honesto do que um valor único.
         # ===============================================================
         PRICE_LOW_USD = 5.00    # sem certificação, mercado spot
         PRICE_MID_USD = 7.50    # referência conservadora
@@ -328,7 +461,7 @@ async def analyze_farm(payload: GeoJSONPayload):
                 db.add(new_farm)
                 db.commit()
             except Exception as pg_err:
-                print(f"Não comunicou com PostGIS, fallback ativado. {pg_err}")
+                print(f"PostGIS fallback ativado. {pg_err}")
                 db.rollback()
             finally:
                 db.close()
@@ -337,24 +470,27 @@ async def analyze_farm(payload: GeoJSONPayload):
         if logs_collection is not None:
             log_entry = {
                 "timestamp": datetime.now().isoformat(),
-                "algo_version": "v2.1.0-calibrated",
+                "algo_version": "v2.2.0-gee-integrated",
                 "feature": payload.features[0],
                 "satellite_metadata": {
-                    "source": "Sentinel-2 & MapBiomas",
+                    "ndvi_source": "GEE/Sentinel-2" if ndvi_is_real else "Simulação (fixo 0.55)",
                     "ndvi_is_real": ndvi_is_real,
-                    "resolution_m": 10 if ndvi_is_real else None
+                    "resolution_m": 10 if ndvi_is_real else None,
+                    "mapbiomas_class_id": mapbiomas_class_id,
+                    "soilgrids_soc_g_per_kg": soc_g_per_kg,
+                    "soilgrids_is_real": soc_is_real,
                 },
                 "results": {
                     "area_ha": area_hectares,
                     "ndvi": ndvi_avg,
-                    "ndvi_source": "GEE/Sentinel-2" if ndvi_is_real else "Simulação (fixo 0.55)",
                     "mapbiomas_use": predominant_use,
                     "carbon_factor_tco2e_ha": round(carbon_factor_per_ha, 3),
+                    "soc_bonus_tco2e": soc_bonus_tco2e,
                     "tco2e": total_carbon_sequestrated,
                     "usd_value_low": estimated_value_low,
                     "usd_value_mid": estimated_value_mid,
                     "usd_value_high": estimated_value_high,
-                    "methodology": "IPCC Tier 1 + Embrapa Inventário Nacional GEE"
+                    "methodology": "IPCC Tier 1 + Embrapa Inventário Nacional GEE + SoilGrids v2.0"
                 }
             }
             try:
@@ -369,10 +505,18 @@ async def analyze_farm(payload: GeoJSONPayload):
                 "area_ha": round(area_hectares, 2),
                 "ndvi_avg": ndvi_avg,
                 "ndvi_source": "GEE/Sentinel-2 (Real)" if ndvi_is_real else "Simulação API",
+                "ndvi_is_real": ndvi_is_real,
                 "land_use": predominant_use,
+                "mapbiomas_class_id": mapbiomas_class_id,
                 "carbon_tco2e": total_carbon_sequestrated,
                 "carbon_factor_tco2e_ha": round(carbon_factor_per_ha, 3),
-                "methodology": "IPCC Tier 1 + Embrapa Inventário Nacional GEE",
+                "soc_data": {
+                    "soc_g_per_kg": soc_g_per_kg,
+                    "is_real": soc_is_real,
+                    "bonus_tco2e": soc_bonus_tco2e,
+                    "source": "SoilGrids v2.0 (ISRIC)" if soc_is_real else "Não disponível"
+                },
+                "methodology": "IPCC Tier 1 + Embrapa Inventário Nacional GEE + SoilGrids v2.0",
                 "market_value": {
                     "low_usd": estimated_value_low,
                     "mid_usd": estimated_value_mid,

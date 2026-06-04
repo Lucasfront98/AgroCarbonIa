@@ -11,3 +11,4 @@ earthengine-api
 google-api-python-client
 google-auth
 pydantic==2.5.2
+httpx>=0.26.0

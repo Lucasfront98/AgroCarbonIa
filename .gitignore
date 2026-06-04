@@ -16,3 +16,9 @@ backend/.env
 .vscode/
 .idea/
 .DS_Store
+
+# Google Cloud / GEE credentials (NUNCA commitar)
+*.json
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/build/asset-manifest.json

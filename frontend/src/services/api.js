@@ -442,6 +442,89 @@ export const evaluationService = {
     return response.data;
   },
 
+  fetchCar: async (carNumber) => {
+    const GEO_API = process.env.REACT_APP_API_URL || 'http://localhost:8001';
+    if (MOCK_MODE) {
+      // Mock: gera um polígono aleatório no Mato Grosso
+      if (!carNumber.includes('-')) {
+        return Promise.reject({ response: { data: { detail: 'Formato inválido. Use: MT-12345-ABCD' } } });
+      }
+      const lng = -55.72 + (Math.random() - 0.5) * 4;
+      const lat = -13.0 + (Math.random() - 0.5) * 4;
+      const off = 0.04;
+      return delayResponse({
+        status: 'success',
+        geojson: {
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            properties: { registro_oficial: carNumber.toUpperCase(), origem: 'Mock_SICAR', status: 'Ativo' },
+            geometry: {
+              type: 'Polygon',
+              coordinates: [[[lng, lat], [lng, lat + off], [lng + off, lat + off], [lng + off, lat], [lng, lat]]]
+            }
+          }]
+        }
+      }, 1200);
+    }
+    const response = await fetch(`${GEO_API}/api/fetch-car/${encodeURIComponent(carNumber)}`);
+    if (!response.ok) {
+      const err = await response.json();
+      throw { response: { data: err } };
+    }
+    return { data: await response.json() };
+  },
+
+  analyzeFarm: async (geojson) => {
+    if (MOCK_MODE) {
+      let area = 500;
+      try {
+        const coords = geojson.features[0].geometry.coordinates[0];
+        if (coords && coords.length > 2) {
+          let sum = 0;
+          for (let i = 0; i < coords.length - 1; i++) {
+            sum += coords[i][0] * coords[i+1][1] - coords[i+1][0] * coords[i][1];
+          }
+          // Rough conversion from degrees squared to hectares (1 degree approx 111.32km)
+          area = (Math.abs(sum) / 2) * 111300 * 111300 * Math.cos(-12.56 * Math.PI / 180) / 10000;
+          if (isNaN(area) || area <= 0.01) {
+            area = Math.floor(100 + Math.random() * 800);
+          }
+        }
+      } catch (err) {
+        area = Math.floor(100 + Math.random() * 800);
+      }
+
+      const tons = Math.round(area * 12.0); 
+      const estimatedValueLow = tons * 5.0;
+      const estimatedValueMid = tons * 7.5;
+      const estimatedValueHigh = tons * 15.0;
+      const ndvi = parseFloat((0.65 + Math.random() * 0.15).toFixed(2));
+      
+      return delayResponse({
+        status: "success",
+        metrics: {
+          area_ha: Math.round(area * 100) / 100,
+          ndvi_avg: ndvi,
+          ndvi_source: "Simulação API (Mock)",
+          ndvi_is_real: false,
+          land_use: "Integração Lavoura-Pecuária-Floresta (ILPF)",
+          carbon_tco2e: tons,
+          carbon_factor_tco2e_ha: 12.0,
+          methodology: "IPCC Tier 1 + Embrapa Inventário Nacional GEE",
+          market_value: {
+            low_usd: estimatedValueLow,
+            mid_usd: estimatedValueMid,
+            high_usd: estimatedValueHigh,
+            note: "Faixa: sem certificação (low) até Verra/Gold Standard (high)"
+          }
+        }
+      });
+    }
+    const response = await api.post('/api/analyze-farm', geojson);
+    return response.data;
+  },
+
   generateMrvReport: async (reportData) => {
     if (MOCK_MODE) {
       // Simulate creating and downloading a PDF
