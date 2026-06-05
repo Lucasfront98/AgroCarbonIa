@@ -226,24 +226,74 @@ async def register_user(user: UserRegistration):
 
 @app.get("/api/fetch-car/{car_number}")
 async def fetch_car(car_number: str):
-    """
-    Mock de integração com o SICAR/Governo Federal.
-    Recebe um número de CAR e retorna o GeoJSON (Polígono) oficial da propriedade.
-    """
     if "-" not in car_number:
-        raise HTTPException(status_code=400, detail="Formato de CAR inválido. Ex: MT-12345-ABCD...")
+        raise HTTPException(status_code=400, detail="Formato de CAR inválido. Ex: SP-3555000-ABCD...")
+    state_code = car_number[:2].upper()
+    valid_states = [
+        "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
+        "PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"
+    ]
+    if state_code not in valid_states:
+        raise HTTPException(status_code=400, detail=f"Sigla de estado inválida: {state_code}")
+    try:
+        layer_name = f"sicar:sicar_imoveis_{state_code.lower()}"
+        geoserver_url = "https://geoserver.car.gov.br/geoserver/sicar/wfs"
+        params = {
+            "service": "WFS",
+            "version": "2.0.0",
+            "request": "GetFeature",
+            "typeName": layer_name,
+            "outputFormat": "application/json",
+            "CQL_FILTER": f"cod_imovel='{car_number}'",
+            "maxFeatures": "1"
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(geoserver_url, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            features = data.get("features", [])
+            if features and len(features) > 0:
+                feature = features[0]
+                geometry = feature.get("geometry", {})
+                properties = feature.get("properties", {})
+                clean_feature = {
+                    "type": "Feature",
+                    "properties": {
+                        "registro_oficial": car_number.upper(),
+                        "origem": "SICAR_GeoServer_Oficial",
+                        "status": properties.get("ind_status", "Consultado"),
+                        "area_ha": properties.get("num_area", None),
+                        "municipio": properties.get("nom_municipio", None),
+                        "estado": state_code,
+                        "tipo_imovel": properties.get("ind_tipo", None),
+                        "dados_reais": True
+                    },
+                    "geometry": geometry
+                }
+                print(f"CAR real encontrado: {car_number}")
+                return {
+                    "status": "success",
+                    "source": "SICAR GeoServer Oficial",
+                    "geojson": {
+                        "type": "FeatureCollection",
+                        "features": [clean_feature]
+                    }
+                }
+    except Exception as e:
+        print(f"GeoServer indisponível: {e}")
 
+    # FALLBACK mock
     base_lng = round(random.uniform(-56.0, -50.0), 4)
     base_lat = round(random.uniform(-16.0, -10.0), 4)
     offset_lat = random.uniform(0.02, 0.08)
     offset_lng = random.uniform(0.02, 0.08)
-
     feature = {
         "type": "Feature",
         "properties": {
             "registro_oficial": car_number.upper(),
-            "origem": "Mock_SICAR_Federal_API",
-            "status": "Ativo - Adequado Legalmente"
+            "origem": "Mock_Fallback",
+            "status": "Simulação",
+            "dados_reais": False
         },
         "geometry": {
             "type": "Polygon",
@@ -256,9 +306,9 @@ async def fetch_car(car_number: str):
             ]]
         }
     }
-
     return {
         "status": "success",
+        "source": "Mock (fallback)",
         "geojson": {
             "type": "FeatureCollection",
             "features": [feature]
