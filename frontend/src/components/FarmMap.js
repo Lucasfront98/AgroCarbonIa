@@ -125,16 +125,10 @@ const FarmMap = ({
         style={{ width: '100%', height: '100%' }}
         ref={mapRef}
       >
-        {/* Satélite Esri */}
+        {/* Satélite Esri — sem overlay de labels para evitar nomes incorretos */}
         <TileLayer
           attribution='&copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics'
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-        />
-        {/* Labels corretos em português via Esri Reference */}
-        <TileLayer
-          attribution=""
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-          opacity={0.8}
         />
 
         <FeatureGroup ref={featureGroupRef}>
