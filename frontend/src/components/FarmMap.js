@@ -54,7 +54,8 @@ const FarmMap = ({
   onPolygonChange,
   externalPolygon = null,
   defaultCenter = [-12.56, -55.72],
-  defaultZoom = 12
+  defaultZoom = 12,
+  mapHeight = '400px'
 }) => {
   const featureGroupRef = useRef(null);
   const mapRef = useRef(null);
@@ -96,7 +97,7 @@ const FarmMap = ({
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '400px', marginBottom: '1.5rem' }}>
+    <div style={{ position: 'relative', width: '100%', height: mapHeight, marginBottom: '1.5rem' }}>
       {/* Label overlay */}
       <div
         style={{
