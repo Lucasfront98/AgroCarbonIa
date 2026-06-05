@@ -249,9 +249,12 @@ async def fetch_car(car_number: str):
         }
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(geoserver_url, params=params)
+        print(f"GeoServer status: {response.status_code}")
+        print(f"GeoServer response: {response.text[:500]}")
         if response.status_code == 200:
             data = response.json()
             features = data.get("features", [])
+            print(f"Features encontradas: {len(features)}")
             if features and len(features) > 0:
                 feature = features[0]
                 geometry = feature.get("geometry", {})
