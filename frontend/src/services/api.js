@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // API Configuration
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-export const MOCK_MODE = true;
+export const MOCK_MODE = false;
 
 const api = axios.create({
   baseURL: API_URL,
