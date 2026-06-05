@@ -470,7 +470,9 @@ export const evaluationService = {
     const response = await fetch(`${GEO_API}/api/fetch-car/${encodeURIComponent(carNumber)}`);
     if (!response.ok) {
       const err = await response.json();
-      throw { response: { data: err } };
+      const error = new Error(err.detail || 'Erro ao buscar CAR');
+      error.response = { data: err };
+      throw error;
     }
     return { data: await response.json() };
   },
