@@ -85,46 +85,17 @@ const Navbar = () => {
           {/* Links Center - Desktop */}
           <div
             className="nav-links-desktop"
-            style={{
-              display: 'flex',
-              gap: '2rem',
-              alignItems: 'center',
-            }}
+            style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}
           >
             <span style={{ cursor: 'pointer', fontSize: '0.9rem', color: 'var(--muted)', fontWeight: 500 }} onClick={() => handleNavClick('como-funciona')}>Como funciona</span>
-            <Link to="/marketplace" style={{ fontSize: '0.9rem', color: 'var(--muted)', fontWeight: 500 }}>Marketplace</Link>
-            <Link to="/avaliar" style={{ fontSize: '0.9rem', color: 'var(--muted)', fontWeight: 500 }}>Avaliação</Link>
             <span style={{ cursor: 'pointer', fontSize: '0.9rem', color: 'var(--muted)', fontWeight: 500 }} onClick={() => handleNavClick('por-que-nos')}>Por que nós</span>
           </div>
 
-          {/* Action buttons - Desktop */}
-          <div
-            className="nav-actions-desktop"
-            style={{
-              display: 'flex',
-              gap: '1rem',
-              alignItems: 'center',
-            }}
-          >
-            {isAuthenticated ? (
-              <>
-                <Link to={dashboardUrl} className="btn btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>
-                  Dashboard
-                </Link>
-                <button onClick={handleLogout} className="btn btn-ghost" style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: 'var(--muted)' }}>
-                  Sair
-                </button>
-              </>
-            ) : (
-              <>
-                <Link to="/login" className="btn btn-ghost" style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>
-                  Entrar
-                </Link>
-                <Link to="/cadastro" className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>
-                  Criar conta grátis
-                </Link>
-              </>
-            )}
+          {/* CTA - Desktop */}
+          <div className="nav-actions-desktop">
+            <Link to="/avaliar" className="btn btn-primary" style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}>
+              Avaliar Propriedade
+            </Link>
           </div>
 
           {/* Burger - Mobile (<= 768px display via CSS) */}
@@ -170,73 +141,21 @@ const Navbar = () => {
           }}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <span
-              style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}
-              onClick={() => handleNavClick('como-funciona')}
-            >
+            <span style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }} onClick={() => { handleNavClick('como-funciona'); }}>
               Como funciona
             </span>
-            <Link
-              to="/marketplace"
-              style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Marketplace
-            </Link>
-            <Link
-              to="/avaliar"
-              style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Avaliação
-            </Link>
-            <span
-              style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}
-              onClick={() => handleNavClick('por-que-nos')}
-            >
+            <span style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }} onClick={() => { handleNavClick('por-que-nos'); }}>
               Por que nós
             </span>
+            <Link to="/avaliar" style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--green)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }} onClick={() => setMobileMenuOpen(false)}>
+              Avaliar Propriedade
+            </Link>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {isAuthenticated ? (
-              <>
-                <Link
-                  to={dashboardUrl}
-                  className="btn btn-primary"
-                  style={{ width: '100%', padding: '1rem' }}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="btn btn-ghost"
-                  style={{ width: '100%', padding: '1rem' }}
-                >
-                  Sair
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="btn btn-ghost"
-                  style={{ width: '100%', padding: '1rem', border: '1px solid var(--border)' }}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Entrar
-                </Link>
-                <Link
-                  to="/cadastro"
-                  className="btn btn-primary"
-                  style={{ width: '100%', padding: '1rem' }}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Criar conta grátis
-                </Link>
-              </>
-            )}
+          <div>
+            <Link to="/avaliar" className="btn btn-primary" style={{ width: '100%', padding: '1rem', textAlign: 'center', display: 'block' }} onClick={() => setMobileMenuOpen(false)}>
+              Avaliar Propriedade →
+            </Link>
           </div>
         </div>
       )}
