@@ -125,14 +125,16 @@ const FarmMap = ({
         style={{ width: '100%', height: '100%' }}
         ref={mapRef}
       >
+        {/* Satélite Esri */}
         <TileLayer
-          attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
+          attribution='&copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics'
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
         />
+        {/* Labels corretos em português via Esri Reference */}
         <TileLayer
-          attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{y}/{x}.png"
-          opacity={0.7}
+          attribution=""
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+          opacity={0.8}
         />
 
         <FeatureGroup ref={featureGroupRef}>
