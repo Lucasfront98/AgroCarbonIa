@@ -339,12 +339,8 @@ export const authService = {
 
 export const marketplaceService = {
   getListings: async () => {
-    if (MOCK_MODE) {
-      const listings = getFromLS('agro_listings') || [];
-      return delayResponse(listings);
-    }
-    const response = await api.get('/api/listings');
-    return response.data;
+    const listings = getFromLS('agro_listings') || [];
+    return delayResponse(listings);
   },
 
   createOrder: async (listingId, quantity) => {
