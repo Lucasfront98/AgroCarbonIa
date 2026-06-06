@@ -259,7 +259,7 @@ async def fetch_car(car_number: str):
         data = await asyncio.to_thread(_sync_sicar, geoserver_url, params)
         features = data.get("features", [])
         print(f"SICAR: {len(features)} feature(s) encontrada(s) para {car_number}")
-            if features and len(features) > 0:
+        if features and len(features) > 0:
                 feature = features[0]
                 geometry = feature.get("geometry", {})
                 properties = feature.get("properties", {})
