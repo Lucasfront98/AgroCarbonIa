@@ -247,7 +247,7 @@ async def fetch_car(car_number: str):
             "CQL_FILTER": f"cod_imovel='{car_number}'",
             "maxFeatures": "1"
         }
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
             response = await client.get(geoserver_url, params=params)
         print(f"GeoServer status: {response.status_code}")
         print(f"GeoServer response: {response.text[:500]}")
@@ -395,7 +395,7 @@ async def analyze_farm(payload: GeoJSONPayload):
 
                 # --- Uso do solo via MapBiomas Coleção 8.0 ---
                 mapbiomas_asset = ee.Image(
-                    'projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1'
+                    'projects/mapbiomas-public/assets/brazil/lulc/collection8/mapbiomas_collection80_integration_v1'
                 )
                 band_names = mapbiomas_asset.bandNames().getInfo()
                 latest_year_band = band_names[-1]
