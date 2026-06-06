@@ -3,7 +3,11 @@ import json
 import time
 import random
 import tempfile
+import asyncio
 import httpx
+import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -247,14 +251,14 @@ async def fetch_car(car_number: str):
             "CQL_FILTER": f"cod_imovel='{car_number}'",
             "maxFeatures": "1"
         }
-        async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
-            response = await client.get(geoserver_url, params=params)
-        print(f"GeoServer status: {response.status_code}")
-        print(f"GeoServer response: {response.text[:500]}")
-        if response.status_code == 200:
-            data = response.json()
-            features = data.get("features", [])
-            print(f"Features encontradas: {len(features)}")
+        def _sync_sicar(url, p):
+            r = requests.get(url, params=p, verify=False, timeout=30)
+            r.raise_for_status()
+            return r.json()
+
+        data = await asyncio.to_thread(_sync_sicar, geoserver_url, params)
+        features = data.get("features", [])
+        print(f"SICAR: {len(features)} feature(s) encontrada(s) para {car_number}")
             if features and len(features) > 0:
                 feature = features[0]
                 geometry = feature.get("geometry", {})

@@ -12,3 +12,5 @@ google-api-python-client
 google-auth
 pydantic==2.5.2
 httpx>=0.26.0
+requests>=2.31.0
+urllib3>=1.26.0
