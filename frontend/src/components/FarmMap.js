@@ -30,11 +30,14 @@ const ExternalPolygonLayer = ({ externalPolygon, featureGroupRef, onPolygonChang
 
     layer.eachLayer((l) => featureGroup.addLayer(l));
 
-    // Centraliza o mapa no polígono
-    const bounds = layer.getBounds();
-    if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [30, 30] });
-    }
+    // Centraliza o mapa no polígono — timeout garante que o mapa está pronto
+    setTimeout(() => {
+      const bounds = layer.getBounds();
+      if (bounds.isValid()) {
+        map.invalidateSize();
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+      }
+    }, 300);
 
     // Notifica o componente pai com o GeoJSON
     const featureCollection = {
