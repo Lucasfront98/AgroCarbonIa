@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { evaluationService } from '../services/api';
 import FarmMap from '../components/FarmMap';
 
@@ -55,7 +54,6 @@ const PriceRange = ({ low, mid, high, currency = 'USD' }) => {
 };
 
 const Evaluation = () => {
-  const { isAuthenticated } = useAuth();
   const location = useLocation();
 
   // Form Fields
@@ -69,6 +67,12 @@ const Evaluation = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [downloading, setDownloading] = useState(false);
+
+  // Código de registro estável — gerado uma única vez por análise (não a cada render)
+  const registrationCode = useMemo(
+    () => Math.floor(100000 + Math.random() * 900000),
+    [result]
+  );
 
   // Mapa sempre aberto por padrão
   const [polygonGeoJSON, setPolygonGeoJSON] = useState(null);
@@ -146,7 +150,6 @@ const Evaluation = () => {
   };
 
   const handleGenerateReport = async () => {
-    if (!isAuthenticated) return;
     setDownloading(true);
     try {
       const response = await evaluationService.generateMrvReport({
@@ -370,6 +373,11 @@ const Evaluation = () => {
               const marketHigh  = isGeo ? result.metrics.market_value.high_usd : null;
               const valueBRL    = isGeo ? marketMid * 5.25 : result.estimated_value_brl;
               const displayName = propName || (carNumber ? `CAR ${carNumber.toUpperCase()}` : 'Propriedade Analisada');
+              // Estado real: extraído do número do CAR (ex: "SP-3555000-...") quando disponível,
+              // caso contrário usa o seletor manual do formulário.
+              const displayState = (carNumber && carNumber.includes('-'))
+                ? carNumber.split('-')[0].toUpperCase()
+                : state;
 
               return (
                 <div style={{ backgroundColor: 'var(--surface2)', border: '1px solid var(--border2)', padding: '2.5rem', animation: 'resultFade 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
@@ -379,7 +387,7 @@ const Evaluation = () => {
                       ANÁLISE SATELLITÁRIA GEOPROCESSADA
                     </span>
                     <h4 className="font-clash" style={{ fontSize: '1.5rem', textTransform: 'uppercase' }}>{displayName}</h4>
-                    <span className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Cód: IM-BR-{state}-{Math.floor(100000 + Math.random() * 900000)}</span>
+                    <span className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Cód: IM-BR-{displayState}-{registrationCode}</span>
                   </div>
 
                   {/* Carbono */}
@@ -434,7 +442,7 @@ const Evaluation = () => {
                   {/* Barras */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '2.5rem' }}>
                     {[
-                      { label: 'Potencial Estável de Sequestro', value: `${(tons / (Math.max(area, 1) * 15) * 100).toFixed(0)}%`, pct: Math.min(100, Math.max(15, (tons / (Math.max(area, 1) * 15) * 100))), color: 'var(--green)' },
+                      { label: 'Potencial Estável de Sequestro', value: `${Math.min(100, (tons / (Math.max(area, 1) * 15) * 100)).toFixed(0)}%`, pct: Math.min(100, Math.max(15, (tons / (Math.max(area, 1) * 15) * 100))), color: 'var(--green)' },
                       { label: `Elegibilidade MRV (${method.split('+')[0].trim()})`, value: `${mrvPct}%`, pct: mrvPct, color: 'var(--green)' },
                     ].map((bar) => (
                       <div key={bar.label}>
@@ -449,21 +457,10 @@ const Evaluation = () => {
                     ))}
                   </div>
 
-                  {/* CTA */}
-                  {isAuthenticated ? (
-                    <button onClick={handleGenerateReport} className="btn btn-primary" style={{ width: '100%', padding: '0.9rem', fontSize: '0.85rem' }} disabled={downloading}>
-                      {downloading ? 'Gerando Laudo PDF...' : 'Gerar Laudo MRV Completo'}
-                    </button>
-                  ) : (
-                    <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)', padding: '1.5rem', textAlign: 'center' }}>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'block', marginBottom: '1rem' }}>
-                        Crie sua conta grátis para baixar o laudo completo em PDF.
-                      </span>
-                      <Link to="/cadastro" className="btn btn-secondary" style={{ width: '100%', padding: '0.7rem', fontSize: '0.8rem', textAlign: 'center', display: 'block' }}>
-                        Criar minha conta grátis
-                      </Link>
-                    </div>
-                  )}
+                  {/* CTA — laudo disponível direto, sem necessidade de cadastro */}
+                  <button onClick={handleGenerateReport} className="btn btn-primary" style={{ width: '100%', padding: '0.9rem', fontSize: '0.85rem' }} disabled={downloading}>
+                    {downloading ? 'Gerando Laudo PDF...' : 'Gerar Laudo MRV Completo'}
+                  </button>
                 </div>
               );
             })()}

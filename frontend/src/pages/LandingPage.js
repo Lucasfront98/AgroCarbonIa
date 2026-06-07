@@ -1,22 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { marketplaceService } from '../services/api';
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  
-  // Tab switcher in "Como funciona"
-  const [activeTab, setActiveTab] = useState('vender'); // 'vender' or 'comprar'
   
   // Count-up animations state
   const [creditsTraded, setCreditsTraded] = useState(0);
   const [volumeTraded, setVolumeTraded] = useState(0);
   const [propertiesEvaluated, setPropertiesEvaluated] = useState(0);
   const [avgTime, setAvgTime] = useState(0);
-
-  // Marketplace preview listings
-  const [listings, setListings] = useState([]);
-  // filterType state removed (unused)
 
   // Simulator Form State
   const [simState, setSimState] = useState('MT');
@@ -88,13 +80,6 @@ const LandingPage = () => {
     };
   }, []);
 
-  // Fetch Marketplace preview listings (3 cards)
-  useEffect(() => {
-    marketplaceService.getListings().then((res) => {
-      setListings(res.data.slice(0, 3));
-    });
-  }, []);
-
   // Recalculate simulation results on input change
   useEffect(() => {
     let vegFactor = 0.5;
@@ -120,8 +105,6 @@ const LandingPage = () => {
 
     setSimResult({ tons, value, mrv });
   }, [simState, simArea, simVeg, simUse]);
-
-  const previewFiltered = listings;
 
   return (
     <div style={{ backgroundColor: 'var(--bg)', minHeight: '100vh', width: '100%' }}>
@@ -189,7 +172,7 @@ const LandingPage = () => {
               fontWeight: 300,
             }}
           >
-            A plataforma inteligente que analisa sua propriedade rural via satélite em segundos e conecta você aos maiores compradores corporativos globais.
+            A plataforma de IA que analisa sua propriedade rural via satélite — com dados reais de Sentinel-2 e Earth Engine — e estima seu potencial de crédito de carbono em segundos.
           </p>
 
           {/* Hero CTAs */}
@@ -228,9 +211,9 @@ const LandingPage = () => {
               </span>
             </div>
 
-            {/* CTA 2: Comprador */}
+            {/* CTA 2: Já tenho o CAR */}
             <div
-              onClick={() => navigate('/marketplace')}
+              onClick={() => navigate('/avaliar')}
               style={{
                 backgroundColor: 'var(--surface)',
                 border: '1px solid var(--border)',
@@ -246,11 +229,11 @@ const LandingPage = () => {
                 e.currentTarget.style.borderColor = 'var(--border)';
               }}
             >
-              <span className="font-mono" style={{ color: 'var(--gold)', fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>COMPRADOR</span>
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Comprar créditos verificados</h3>
-              <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>Adquira lotes MRV auditáveis, certificados e devidamente rastreáveis com total segurança em blockchain.</p>
+              <span className="font-mono" style={{ color: 'var(--gold)', fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>JÁ TENHO O CAR</span>
+              <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Carregar pelo CAR/SICAR</h3>
+              <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>Cole o número do seu Cadastro Ambiental Rural e carregamos os limites oficiais da propriedade automaticamente via SICAR.</p>
               <span style={{ color: 'var(--gold)', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
-                EXPLORAR MARKETPLACE &rarr;
+                BUSCAR MEU CAR &rarr;
               </span>
             </div>
           </div>
@@ -317,133 +300,52 @@ const LandingPage = () => {
               alignItems: 'center',
             }}
           >
-            {/* Left side: Steps + tab switcher */}
+            {/* Left side: Steps do motor de avaliação real */}
             <div>
-              {/* Tab Switcher */}
-              <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '2.5rem' }}>
-                <button
-                  onClick={() => setActiveTab('vender')}
-                  style={{
-                    flex: 1,
-                    padding: '1rem',
-                    border: 'none',
-                    borderBottom: activeTab === 'vender' ? '2px solid var(--green)' : 'none',
-                    color: activeTab === 'vender' ? 'var(--green)' : 'var(--muted)',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    fontSize: '0.85rem',
-                    letterSpacing: '0.05em',
-                  }}
-                >
-                  Vender Créditos
-                </button>
-                <button
-                  onClick={() => setActiveTab('comprar')}
-                  style={{
-                    flex: 1,
-                    padding: '1rem',
-                    border: 'none',
-                    borderBottom: activeTab === 'comprar' ? '2px solid var(--green)' : 'none',
-                    color: activeTab === 'comprar' ? 'var(--green)' : 'var(--muted)',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    fontSize: '0.85rem',
-                    letterSpacing: '0.05em',
-                  }}
-                >
-                  Comprar Créditos
-                </button>
+              <span className="font-mono" style={{ color: 'var(--green)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.12em', display: 'block', marginBottom: '2rem' }}>
+                Do CAR ao laudo MRV — em segundos
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--green)', flexShrink: 0, fontSize: '1.1rem' }}>
+                    01
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Delimite sua propriedade</h4>
+                    <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Cole o número do seu CAR/SICAR para carregar os limites oficiais automaticamente, ou desenhe o perímetro direto no mapa.</p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--green)', flexShrink: 0, fontSize: '1.1rem' }}>
+                    02
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>IA analisa via satélite</h4>
+                    <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Processamos imagens reais do Sentinel-2 (Google Earth Engine), calculando NDVI, uso do solo e carbono orgânico em segundos.</p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--green)', flexShrink: 0, fontSize: '1.1rem' }}>
+                    03
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Receba a estimativa de carbono</h4>
+                    <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Veja o volume estimado de tCO₂e/ano, a faixa de valor de mercado e a metodologia (IPCC Tier 1 + Embrapa) por trás do número.</p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--green)', flexShrink: 0, fontSize: '1.1rem' }}>
+                    04
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Baixe o laudo MRV em PDF</h4>
+                    <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Exporte um relatório auditável com os dados da análise — pronto para apoiar processos de certificação.</p>
+                  </div>
+                </div>
               </div>
-
-              {/* Sell Flow */}
-              {activeTab === 'vender' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--green)', flexShrink: 0, fontSize: '1.1rem' }}>
-                      01
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Delimite sua propriedade</h4>
-                      <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Insira a área da sua fazenda ou desenhe o perímetro da reserva legal de forma simplificada no mapa.</p>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--green)', flexShrink: 0, fontSize: '1.1rem' }}>
-                      02
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>IA analisa via satélite</h4>
-                      <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Nossos algoritmos processam imagens espectrais históricas analisando índices NDVI e biomassa viva em 2 segundos.</p>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--green)', flexShrink: 0, fontSize: '1.1rem' }}>
-                      03
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Receba laudo MRV completo</h4>
-                      <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Um relatório em PDF criptografado e auditável contendo volumetria de CO₂ e dados elegíveis para certificação imediata.</p>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--green)', flexShrink: 0, fontSize: '1.1rem' }}>
-                      04
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Publique no marketplace</h4>
-                      <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Seus créditos são tokenizados e colocados no catálogo com acesso direto a centenas de corporações e investidores.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Buy Flow */}
-              {activeTab === 'comprar' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--gold)', flexShrink: 0, fontSize: '1.1rem' }}>
-                      01
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Crie sua conta corporativa</h4>
-                      <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Realize o cadastro rápido da sua empresa e defina suas metas anuais ESG de compensação em toneladas de CO₂.</p>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--gold)', flexShrink: 0, fontSize: '1.1rem' }}>
-                      02
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Explore créditos verificados</h4>
-                      <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Filtre listagens por tipo de vegetação, estado e nota NDVI. Tenha acesso a fotos espectrais e laudos MRV reais.</p>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--gold)', flexShrink: 0, fontSize: '1.1rem' }}>
-                      03
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Compre e receba certificado</h4>
-                      <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Conclua o pagamento via plataforma e receba imediatamente o título de neutralização inviolável e o certificado PDF.</p>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <div className="font-mono flex-center" style={{ width: '40px', height: '40px', border: '1px solid var(--border2)', color: 'var(--gold)', flexShrink: 0, fontSize: '1.1rem' }}>
-                      04
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Rastreie seu impacto</h4>
-                      <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Monitore os projetos apoiados em tempo real através do painel ESG com auditorias e relatórios automatizados.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Right side: Mockup MRV Report */}
@@ -506,84 +408,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* 5. Marketplace preview */}
-      <section style={{ padding: '6rem 0', borderBottom: '1px solid var(--border)' }}>
-        <div className="container">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '3rem', flexWrap: 'wrap', gap: '1rem' }}>
-            <div>
-              <span className="font-mono" style={{ color: 'var(--gold)', fontSize: '0.85rem', letterSpacing: '0.15em', textTransform: 'uppercase' }}>Oportunidades em aberto</span>
-              <h2 style={{ fontSize: '2.5rem', textTransform: 'uppercase', marginTop: '0.5rem' }}>Lotes em destaque</h2>
-            </div>
-            <Link to="/marketplace" className="btn btn-secondary" style={{ padding: '0.6rem 1.2rem', fontSize: '0.8rem' }}>
-              Ver todos os créditos &rarr;
-            </Link>
-          </div>
-
-          {/* Cards list */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-              gap: '2rem',
-            }}
-          >
-            {previewFiltered.map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  backgroundColor: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  padding: '2rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                    <span className="font-mono code" style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-                      {item.id}
-                    </span>
-                    <span className="badge badge-green" style={{ borderColor: 'rgba(61,220,132,0.15)', color: 'var(--green)', fontSize: '0.7rem' }}>
-                      {item.type}
-                    </span>
-                  </div>
-
-                  <h3 className="font-clash" style={{ fontSize: '1.4rem', marginBottom: '0.5rem' }}>{item.farmName}</h3>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'block', marginBottom: '1.5rem' }}>
-                    📍 {item.city}, {item.state}
-                  </span>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '1rem 0', marginBottom: '1.5rem' }} className="font-mono">
-                    <div>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'block', textTransform: 'uppercase' }}>Área total</span>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{item.area.toLocaleString()} ha</span>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'block', textTransform: 'uppercase' }}>Média NDVI</span>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--green)' }}>{item.ndvi}</span>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'block', textTransform: 'uppercase' }}>Carbono</span>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{item.tco2.toLocaleString()} tCO₂</span>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'block', textTransform: 'uppercase' }}>Preço/t</span>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--green)' }}>R$ {item.price.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <Link to="/marketplace" className="btn btn-primary" style={{ width: '100%', padding: '0.7rem', textAlign: 'center', fontSize: '0.8rem' }}>
-                  Comprar créditos
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 6. Evaluation simulator */}
+      {/* 5. Evaluation simulator */}
       <section style={{ padding: '6rem 0', borderBottom: '1px solid var(--border)' }}>
         <div className="container">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '4rem' }}>
@@ -802,14 +627,11 @@ const LandingPage = () => {
         <div className="container" style={{ textAlign: 'center' }}>
           <h2 className="font-clash" style={{ fontSize: '2.5rem', marginBottom: '1rem', textTransform: 'uppercase' }}>Comece agora — é grátis</h2>
           <p style={{ color: 'var(--muted)', fontSize: '1.1rem', marginBottom: '2.5rem', maxWidth: '600px', margin: '0 auto 2.5rem auto' }}>
-            Descubra o potencial verde da sua fazenda ou impulsione sua empresa na agenda ambiental em poucos cliques.
+            Descubra o potencial de carbono da sua fazenda em segundos, com dados reais de satélite.
           </p>
           <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link to="/cadastro" className="btn btn-primary" style={{ padding: '0.85rem 2rem' }}>
-              Cadastrar como Produtor
-            </Link>
-            <Link to="/cadastro" className="btn btn-secondary" style={{ padding: '0.85rem 2rem' }}>
-              Cadastrar como Comprador
+            <Link to="/avaliar" className="btn btn-primary" style={{ padding: '0.85rem 2rem' }}>
+              Avaliar minha propriedade
             </Link>
           </div>
         </div>
@@ -834,7 +656,6 @@ const LandingPage = () => {
             <div>
               <h5 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1.25rem', color: 'var(--muted)' }}>Plataforma</h5>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem' }}>
-                <Link to="/marketplace" style={{ color: 'var(--muted)' }} onMouseEnter={e => e.target.style.color = 'var(--green)'} onMouseLeave={e => e.target.style.color = 'var(--muted)'}>Marketplace</Link>
                 <Link to="/avaliar" style={{ color: 'var(--muted)' }} onMouseEnter={e => e.target.style.color = 'var(--green)'} onMouseLeave={e => e.target.style.color = 'var(--muted)'}>Avaliação Satélite</Link>
                 <span onClick={() => handleNavClick('como-funciona')} style={{ color: 'var(--muted)', cursor: 'pointer' }} onMouseEnter={e => e.target.style.color = 'var(--green)'} onMouseLeave={e => e.target.style.color = 'var(--muted)'}>Como funciona</span>
               </div>

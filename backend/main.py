@@ -397,22 +397,29 @@ async def analyze_farm(payload: GeoJSONPayload):
                     ndvi_is_real = True
                     print(f"NDVI real obtido do Sentinel-2: {ndvi_avg}")
 
-                # --- Uso do solo via MapBiomas Coleção 8.0 ---
-                mapbiomas_asset = ee.Image(
-                    'projects/mapbiomas-public/assets/brazil/lulc/collection8/mapbiomas_collection80_integration_v1'
-                )
-                band_names = mapbiomas_asset.bandNames().getInfo()
-                latest_year_band = band_names[-1]
-                latest_image = mapbiomas_asset.select(latest_year_band)
+                # --- Uso do solo via MapBiomas (Coleção pública oficial no GEE) ---
+                # Asset correto e atualmente mantido pela MapBiomas no catálogo público do GEE:
+                # https://developers.google.com/earth-engine/datasets/catalog/projects_mapbiomas-public_assets_brazil_lulc_v1
+                # É uma ImageCollection com 1 imagem por (ano, coleção); cada imagem tem a banda "classification".
+                mapbiomas_collection = ee.ImageCollection('projects/mapbiomas-public/assets/brazil/lulc/v1')
+                latest_year = ee.Number(mapbiomas_collection.aggregate_max('year'))
+                latest_collection_id = ee.Number(mapbiomas_collection.aggregate_max('collection_id'))
+                mapbiomas_latest = mapbiomas_collection.filter(
+                    ee.Filter.And(
+                        ee.Filter.eq('year', latest_year),
+                        ee.Filter.eq('collection_id', latest_collection_id)
+                    )
+                ).first()
 
-                stats = latest_image.reduceRegion(
+                band_name = 'classification'
+                stats = mapbiomas_latest.select(band_name).reduceRegion(
                     reducer=ee.Reducer.mode(),
                     geometry=ee_geom,
                     scale=30,
                     maxPixels=1e9
                 ).getInfo()
 
-                mapbiomas_class_id = stats.get(latest_year_band)
+                mapbiomas_class_id = stats.get(band_name)
 
                 # Mapeamento de classes MapBiomas → uso dominante
                 # https://mapbiomas.org/codigos-de-legenda

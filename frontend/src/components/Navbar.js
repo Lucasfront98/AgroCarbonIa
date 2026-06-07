@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
-  const { isAuthenticated, role, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
@@ -32,14 +30,6 @@ const Navbar = () => {
       }
     }
   };
-
-  const handleLogout = async () => {
-    await logout();
-    setMobileMenuOpen(false);
-    navigate('/');
-  };
-
-  const dashboardUrl = role === 'produtor' ? '/dashboard/produtor' : '/dashboard/comprador';
 
   return (
     <>
