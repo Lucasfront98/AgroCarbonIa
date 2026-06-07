@@ -281,6 +281,7 @@ async def fetch_car(car_number: str):
                 return {
                     "status": "success",
                     "source": "SICAR GeoServer Oficial",
+                    "dados_reais": True,
                     "geojson": {
                         "type": "FeatureCollection",
                         "features": [clean_feature]
@@ -289,9 +290,21 @@ async def fetch_car(car_number: str):
     except Exception as e:
         print(f"GeoServer indisponível: {e}")
 
-    # FALLBACK mock
-    base_lng = round(random.uniform(-56.0, -50.0), 4)
-    base_lat = round(random.uniform(-16.0, -10.0), 4)
+    # FALLBACK mock — gera o polígono perto do centróide aproximado do
+    # ESTADO indicado no número do CAR, para a localização não cair em
+    # outra região do país quando o GeoServer estiver indisponível.
+    state_centroids = {
+        "AC": (-9.0, -70.0), "AL": (-9.6, -36.3), "AM": (-4.0, -63.0), "AP": (1.4, -51.9),
+        "BA": (-12.5, -41.7), "CE": (-5.2, -39.5), "DF": (-15.8, -47.9), "ES": (-19.2, -40.4),
+        "GO": (-15.9, -49.6), "MA": (-5.0, -45.3), "MG": (-18.6, -44.4), "MS": (-20.5, -54.6),
+        "MT": (-12.6, -55.7), "PA": (-3.9, -52.5), "PB": (-7.2, -36.7), "PE": (-8.5, -37.5),
+        "PI": (-7.5, -42.8), "PR": (-24.7, -51.5), "RJ": (-22.3, -43.0), "RN": (-5.8, -36.6),
+        "RO": (-10.9, -62.8), "RR": (2.0, -61.4), "RS": (-30.0, -53.2), "SC": (-27.3, -50.0),
+        "SE": (-10.6, -37.4), "SP": (-22.2, -48.6), "TO": (-10.2, -48.3)
+    }
+    centroid_lat, centroid_lng = state_centroids.get(state_code, (-12.56, -55.72))
+    base_lng = round(centroid_lng + random.uniform(-0.6, 0.6), 4)
+    base_lat = round(centroid_lat + random.uniform(-0.6, 0.6), 4)
     offset_lat = random.uniform(0.02, 0.08)
     offset_lng = random.uniform(0.02, 0.08)
     feature = {
@@ -300,6 +313,7 @@ async def fetch_car(car_number: str):
             "registro_oficial": car_number.upper(),
             "origem": "Mock_Fallback",
             "status": "Simulação",
+            "estado": state_code,
             "dados_reais": False
         },
         "geometry": {
@@ -316,6 +330,7 @@ async def fetch_car(car_number: str):
     return {
         "status": "success",
         "source": "Mock (fallback)",
+        "dados_reais": False,
         "geojson": {
             "type": "FeatureCollection",
             "features": [feature]

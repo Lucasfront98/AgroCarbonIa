@@ -89,6 +89,7 @@ const Evaluation = () => {
   const [carLoading, setCarLoading] = useState(false);
   const [carError, setCarError] = useState('');
   const [carFound, setCarFound] = useState(false);
+  const [carIsReal, setCarIsReal] = useState(false);
 
   useEffect(() => {
     if (location.state) {
@@ -121,12 +122,18 @@ const Evaluation = () => {
     setCarLoading(true);
     setCarError('');
     setCarFound(false);
+    setCarIsReal(false);
     try {
       const res = await evaluationService.fetchCar(carNumber.trim());
       const data = res.data ? res.data : res;
       if (data?.geojson) {
         setExternalPolygon(data.geojson);
         setCarFound(true);
+        // O backend sinaliza se o polígono veio do GeoServer oficial do SICAR
+        // ou de uma simulação de fallback (quando o serviço oficial está indisponível)
+        const feature = data.geojson?.features?.[0];
+        const isReal = data?.dados_reais ?? feature?.properties?.dados_reais ?? false;
+        setCarIsReal(!!isReal);
       }
     } catch (err) {
       const msg = err?.response?.data?.detail || 'CAR não encontrado. Verifique o número e tente novamente.';
@@ -251,7 +258,16 @@ const Evaluation = () => {
                   </button>
                 </div>
                 {carError && <span style={{ fontSize: '0.75rem', color: '#ef4444', display: 'block', marginTop: '0.5rem' }}>{carError}</span>}
-                {carFound && <span style={{ fontSize: '0.75rem', color: 'var(--green)', display: 'block', marginTop: '0.5rem' }}>✓ Propriedade localizada — ajuste os limites no mapa se necessário</span>}
+                {carFound && carIsReal && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--green)', display: 'block', marginTop: '0.5rem' }}>
+                    ✓ Propriedade localizada via SICAR oficial — limites reais carregados
+                  </span>
+                )}
+                {carFound && !carIsReal && (
+                  <span style={{ fontSize: '0.75rem', color: '#f5a623', display: 'block', marginTop: '0.5rem' }}>
+                    ⚠ SICAR oficial indisponível no momento — exibindo área aproximada de simulação para a região do estado. Ajuste o polígono manualmente no mapa para um resultado preciso.
+                  </span>
+                )}
               </div>
 
               {/* ====== MAPA — SEMPRE VISÍVEL E GRANDE ====== */}
