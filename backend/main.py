@@ -242,23 +242,55 @@ async def fetch_car(car_number: str):
     try:
         layer_name = f"sicar:sicar_imoveis_{state_code.lower()}"
         geoserver_url = "https://geoserver.car.gov.br/geoserver/sicar/wfs"
-        params = {
-            "service": "WFS",
-            "version": "2.0.0",
-            "request": "GetFeature",
-            "typeName": layer_name,
-            "outputFormat": "application/json",
-            "CQL_FILTER": f"cod_imovel='{car_number}'",
-            "maxFeatures": "1"
-        }
+        car_clean = car_number.strip().upper()
+
         def _sync_sicar(url, p):
-            r = requests.get(url, params=p, verify=False, timeout=30)
+            r = requests.get(url, params=p, verify=False, timeout=45)
             r.raise_for_status()
             return r.json()
 
-        data = await asyncio.to_thread(_sync_sicar, geoserver_url, params)
-        features = data.get("features", [])
-        print(f"SICAR: {len(features)} feature(s) encontrada(s) para {car_number}")
+        # O GeoServer pode estar lento/instável e o campo cod_imovel pode estar
+        # em caixa diferente da digitada — tenta algumas variações com retry
+        # antes de cair no fallback simulado.
+        attempts = [
+            f"cod_imovel='{car_clean}'",
+            f"cod_imovel='{car_number.strip()}'",
+            f"UPPER(cod_imovel)='{car_clean}'",
+        ]
+
+        data = None
+        last_error = None
+        for attempt_idx, cql in enumerate(attempts, start=1):
+            params = {
+                "service": "WFS",
+                "version": "2.0.0",
+                "request": "GetFeature",
+                "typeName": layer_name,
+                "outputFormat": "application/json",
+                "CQL_FILTER": cql,
+                "maxFeatures": "1"
+            }
+            for retry in range(2):
+                try:
+                    candidate = await asyncio.to_thread(_sync_sicar, geoserver_url, params)
+                    candidate_features = candidate.get("features", [])
+                    print(f"SICAR (tentativa {attempt_idx}, retry {retry}): {len(candidate_features)} feature(s) para {car_number} com filtro [{cql}]")
+                    if candidate_features:
+                        data = candidate
+                        break
+                    elif data is None:
+                        data = candidate  # guarda última resposta válida (mesmo vazia) para diagnóstico
+                except Exception as e:
+                    last_error = e
+                    print(f"SICAR (tentativa {attempt_idx}, retry {retry}) falhou: {e}")
+            if data and data.get("features"):
+                break
+
+        if last_error and not (data and data.get("features")):
+            print(f"GeoServer SICAR: todas as tentativas falharam ou vieram vazias. Último erro: {last_error}")
+
+        features = (data or {}).get("features", [])
+        print(f"SICAR: resultado final — {len(features)} feature(s) encontrada(s) para {car_number}")
         if features and len(features) > 0:
                 feature = features[0]
                 geometry = feature.get("geometry", {})
