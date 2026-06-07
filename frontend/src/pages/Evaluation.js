@@ -292,6 +292,9 @@ const Evaluation = () => {
                     </div>
                   </div>
                 </div>
+                <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '0.6rem' }}>
+                  💡 <strong style={{ color: 'var(--text)' }}>Dica:</strong> desenhar o contorno manualmente sobre a imagem de satélite é o caminho mais confiável para garantir que a área e a localização analisadas sejam exatamente as da sua propriedade — use a ferramenta de polígono no canto superior esquerdo do mapa. A busca por CAR é um atalho útil, mas pode trazer uma área aproximada quando o SICAR oficial está indisponível.
+                </p>
                 <FarmMap
                   onPolygonChange={handlePolygonChange}
                   externalPolygon={externalPolygon}
