@@ -68,11 +68,17 @@ const Evaluation = () => {
   const [result, setResult] = useState(null);
   const [downloading, setDownloading] = useState(false);
 
-  // Código de registro estável — gerado uma única vez por análise (não a cada render)
-  const registrationCode = useMemo(
-    () => Math.floor(100000 + Math.random() * 900000),
-    [result]
-  );
+  // Código de registro estável — derivado do próprio resultado da análise,
+  // assim não recalcula a cada render nem muda visualmente sem motivo
+  const registrationCode = useMemo(() => {
+    if (!result) return 100000;
+    const seed = JSON.stringify(result);
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    }
+    return 100000 + (hash % 900000);
+  }, [result]);
 
   // Mapa sempre aberto por padrão
   const [polygonGeoJSON, setPolygonGeoJSON] = useState(null);
