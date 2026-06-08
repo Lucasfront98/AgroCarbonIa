@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 import { evaluationService } from '../services/api';
 import FarmMap from '../components/FarmMap';
 
@@ -162,25 +163,135 @@ const Evaluation = () => {
     }
   };
 
-  const handleGenerateReport = async () => {
+  // Geração do laudo MRV em PDF — feita 100% no navegador (jsPDF), sem
+  // depender de um endpoint de backend (que ainda não existe em produção).
+  // Reaproveita os mesmos campos derivados exibidos no card de resultado.
+  const handleGenerateReport = () => {
+    if (!result) return;
     setDownloading(true);
     try {
-      const response = await evaluationService.generateMrvReport({
-        propertyName: propName || 'Fazenda Analisada', state, area, vegetation, landUse,
-        tons_co2: result.tons_co2,
-        estimated_value_brl: result.estimated_value_brl,
-        ndvi_score: result.ndvi_score,
-        mrv_eligibility_pct: result.mrv_eligibility_pct
-      });
-      const blob = response.data;
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `Laudo_MRV_${(propName || 'Fazenda').replace(/\s+/g, '_')}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch {
+      const isGeo       = !!result.metrics;
+      const tons        = isGeo ? result.metrics.carbon_tco2e : result.tons_co2;
+      const ndvi        = isGeo ? result.metrics.ndvi_avg     : result.ndvi_score;
+      const ndviIsReal  = isGeo ? result.metrics.ndvi_is_real : false;
+      const ndviSrc     = isGeo ? result.metrics.ndvi_source  : 'Sentinel-2 (Simulação)';
+      const method      = isGeo ? result.metrics.methodology  : 'IPCC Tier 1 + Embrapa';
+      const mrvPct      = isGeo ? 85 : result.mrv_eligibility_pct;
+      const socData     = isGeo ? result.metrics.soc_data     : null;
+      const marketLow   = isGeo ? result.metrics.market_value.low_usd  : null;
+      const marketMid   = isGeo ? result.metrics.market_value.mid_usd  : null;
+      const marketHigh  = isGeo ? result.metrics.market_value.high_usd : null;
+      const valueBRL    = isGeo ? marketMid * 5.25 : result.estimated_value_brl;
+      const displayName = propName || (carNumber ? `CAR ${carNumber.toUpperCase()}` : 'Propriedade Analisada');
+      const displayState = (carNumber && carNumber.includes('-')) ? carNumber.split('-')[0].toUpperCase() : state;
+
+      const GREEN = [61, 220, 132];
+      const MUTED = [120, 130, 120];
+      const DARK  = [25, 30, 25];
+
+      const doc = new jsPDF();
+      let y = 20;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(17);
+      doc.setTextColor(...DARK);
+      doc.text('AgroCarbon IA — Laudo MRV de Carbono', 14, y);
+
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...MUTED);
+      doc.text(`Emitido em ${new Date().toLocaleString('pt-BR')}  ·  Cód: IM-BR-${displayState}-${registrationCode}`, 14, y);
+
+      y += 6;
+      doc.setDrawColor(...GREEN);
+      doc.setLineWidth(0.6);
+      doc.line(14, y, 196, y);
+
+      y += 10;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(...DARK);
+      doc.text(displayName, 14, y);
+
+      y += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...MUTED);
+      doc.text(`Estado: ${displayState}   ·   Área: ${Number(area).toLocaleString('pt-BR')} ha   ·   Modelo de gestão: ${landUse}`, 14, y);
+
+      y += 12;
+
+      const addMetric = (label, value, sourceLabel) => {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...MUTED);
+        doc.text(label.toUpperCase(), 14, y);
+
+        y += 6;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(13);
+        doc.setTextColor(...DARK);
+        doc.text(String(value), 14, y);
+
+        if (sourceLabel) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(...GREEN);
+          doc.text(sourceLabel, 14, y + 5);
+          y += 5;
+        }
+        y += 9;
+      };
+
+      addMetric(
+        'Carbono sequestrado estimado',
+        `${Number(tons).toLocaleString('pt-BR')} tCO2e / ano`,
+        isGeo ? 'Calculo geoespacial — Sentinel-2 + MapBiomas + SoilGrids (IPCC Tier 1 + Embrapa)' : 'Estimativa simplificada (entrada manual)'
+      );
+      addMetric(
+        'Indice NDVI medio',
+        ndvi,
+        ndviIsReal ? `Dado real · ${ndviSrc}` : `Simulacao · ${ndviSrc}`
+      );
+
+      if (isGeo && marketLow !== null) {
+        addMetric(
+          'Faixa de valor de mercado (sem certificacao -> Verra / Gold Standard)',
+          `US$ ${Number(marketLow).toLocaleString('en-US')}   —   US$ ${Number(marketMid).toLocaleString('en-US')}   —   US$ ${Number(marketHigh).toLocaleString('en-US')}`,
+          'Referencia conservadora · Ecosystem Marketplace / Moss.Earth (MCO2) / CBIO-B3'
+        );
+      } else {
+        addMetric('Valor estimado anual', `R$ ${Number(valueBRL).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, null);
+      }
+
+      if (socData) {
+        addMetric(
+          'Carbono organico do solo — COS (0-30cm)',
+          socData.soc_g_per_kg !== null
+            ? `${socData.soc_g_per_kg} g/kg${socData.bonus_tco2e > 0 ? `  (+${socData.bonus_tco2e} tCO2e bonus edafico)` : ''}`
+            : 'N/D',
+          socData.is_real ? 'Dado real · SoilGrids (ISRIC)' : 'Simulacao'
+        );
+      }
+
+      addMetric('Elegibilidade MRV', `${mrvPct}%`, method);
+
+      y += 2;
+      doc.setDrawColor(225, 225, 225);
+      doc.setLineWidth(0.3);
+      doc.line(14, y, 196, y);
+
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...MUTED);
+      const disclaimer = 'Laudo gerado automaticamente pelo motor de avaliacao AgroCarbon IA a partir de geoprocessamento de imagens de satelite (Sentinel-2 / Google Earth Engine), MapBiomas e SoilGrids, seguindo metodologia IPCC Tier 1 com fatores calibrados Embrapa. Este documento e uma estimativa tecnica preliminar e nao substitui auditoria MRV de certificadora (Verra / Gold Standard) para emissao formal de creditos de carbono.';
+      const lines = doc.splitTextToSize(disclaimer, 182);
+      doc.text(lines, 14, y);
+
+      doc.save(`Laudo_MRV_${(propName || 'Fazenda').replace(/\s+/g, '_')}.pdf`);
+    } catch (err) {
       alert('Ocorreu um erro ao gerar o laudo.');
     } finally {
       setDownloading(false);
